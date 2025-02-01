@@ -335,6 +335,79 @@ bool Matrix::solve(int solutions[], int size) {
 }
 
 /*
+Name: swapRows()
+Parameters: int row1, int row2
+Return: void
+Description: Swaps two rows in the array
+*/
+void Matrix::swapRows(int row1, int row2) {
+
+    // Check for validity
+    if (!isValid() || row1 >= rows || row2 >= rows) {
+        throw string("Error: Invalid matrix index.");
+    }
+
+    // Don't waste resources swapping
+    // the row with itself
+    if (row1 == row2)
+        return;
+
+    // Create new rows that will be pointed to
+    double* newRow1 = new double[cols];
+    double* newRow2 = new double[cols];
+
+    // Copy data to new rows
+    // This is where the swap occurs
+    for (int i = 0; i < cols; i++) {
+        newRow1[i] = matrix[row2][i];
+        newRow2[i] = matrix[row1][i];
+    }
+
+    // Delete old rows
+    delete[] matrix[row1];
+    delete[] matrix[row2];
+
+    // Point old rows to new rows
+    matrix[row1] = newRow1;
+    matrix[row2] = newRow2;
+
+}
+
+/*
+Name: multiplyRow()
+Parameters: int row, double value
+Return: void
+Description: Multiplies an entire row by a value
+*/
+void Matrix::multiplyRow(int row, double value) {
+
+    // Check validity
+    if (!isValid() || row >= rows || value == 0)
+        throw string("Error: Invalid matrix index.");
+
+    for (int i = 0; i < cols; i++)
+        matrix[row][i] *= value;
+
+}
+
+/*
+Name: replaceRow()
+Parameters: int replaceRow, int getRow, int value
+Return: Void
+Description: replaceRow = replaceRow + (value * getRow)
+*/
+void Matrix::replaceRow(int replaceRow, int getRow, int value) {
+
+    // Check validity
+    if (!isValid() || replaceRow >= rows || getRow >= rows || value == 0 || replaceRow == getRow)
+        throw string("Error: Invalid matrix index.");
+
+    for (int i = 0; i < cols; i++)
+        matrix[replaceRow][i] += value * matrix[getRow][i];
+
+}
+
+/*
 Name: operator[] 
 Parameters: int index
 Return: double*
