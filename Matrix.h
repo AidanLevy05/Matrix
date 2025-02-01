@@ -36,7 +36,11 @@ public:
     void display();
 
     // Solving
+    // Functions with a * next to them will become private functions
     bool solve(int[], int);
+    void swapRows(int, int); // *
+    void multiplyRow(int, double); // *
+    void replaceRow(int, int, int); // *
 
     // Overloaded operators
     double* operator[](int);
@@ -47,4 +51,4 @@ public:
 
 };
 
-#endif
+#endif /* MATRIX_H */
