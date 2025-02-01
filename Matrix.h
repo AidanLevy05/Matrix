@@ -17,6 +17,7 @@ private:
     bool isValid() const;
 
 public:
+    // Constructors and destructors
     Matrix();
     Matrix(int, int);
     Matrix(int, int, double);
@@ -24,6 +25,7 @@ public:
     Matrix(const Matrix&);
     ~Matrix();
 
+    // Basic functions
     void setValue(int, int, double);
     void setRandom(int);
     double getValue(int, int);
@@ -32,8 +34,11 @@ public:
     int getCols();
     void dimensions();
     void display();
+
+    // Solving
     bool solve(int[], int);
 
+    // Overloaded operators
     double* operator[](int);
     Matrix& operator=(const Matrix&);
     Matrix operator*(Matrix&);
