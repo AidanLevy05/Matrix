@@ -60,18 +60,36 @@ int main() {
     div();
 
     showAllDimensions(matrix4, matrix5, matrix6, '-');
-    div("Pulling matrix from file");
+    div("Pulling matrix from file & ensuring that solving works");
 
     string file = "matrix.txt";
     Matrix matrix7(file);
     matrix7.display();
 
-    int sols[2] {5, 2};
-    if (matrix7.solve(sols, 2)) {
+    int sols[3] {2, 3, 4};
+    if (matrix7.solve(sols, 3)) {
         cout << "This solution set works" << endl;
     } else {
         cout << "This solution set does not work" << endl;
     }
+
+    div("Row swap on last matrix");
+    matrix7.swapRows(1, 2);
+    matrix7.display();
+
+    div("Row multiplication on last row");
+    matrix7.multiplyRow(2, -1);
+    matrix7.display();
+
+    div("Returning to normal...");
+    matrix7.multiplyRow(2, -1);
+    matrix7.swapRows(1, 2);
+    matrix7.display();
+
+    div("Row replacement on last row with first row, scalar = -5");
+    matrix7.replaceRow(2, 0, -5);
+    matrix7.display();
+    div();
 
     return 0;
 }
