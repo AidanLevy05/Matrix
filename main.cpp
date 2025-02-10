@@ -64,32 +64,44 @@ int main() {
 
     string file = "matrix.txt";
     Matrix matrix7(file);
+
+    div("Row swap on first row of last matrix");
+    matrix7.swapRows(0, 1);
     matrix7.display();
 
-    int sols[3] {2, 3, 4};
-    if (matrix7.solve(sols, 3)) {
-        cout << "This solution set works" << endl;
-    } else {
-        cout << "This solution set does not work" << endl;
-    }
-
-    div("Row swap on last matrix");
-    matrix7.swapRows(1, 2);
-    matrix7.display();
-
-    div("Row multiplication on last row");
-    matrix7.multiplyRow(2, -1);
+    div("Row multiplication on first row");
+    matrix7.multiplyRow(0, -1);
     matrix7.display();
 
     div("Returning to normal...");
-    matrix7.multiplyRow(2, -1);
-    matrix7.swapRows(1, 2);
+    matrix7.multiplyRow(0, -1);
+    matrix7.swapRows(0, 1);
     matrix7.display();
 
-    div("Row replacement on last row with first row, scalar = -5");
-    matrix7.replaceRow(2, 0, -5);
+    div("Row replacement on first row with first row, scalar = -5");
+    matrix7.replaceRow(0, 1, -5);
     matrix7.display();
+
+    div("Checking if last row contains infinite / no solutions.");
+    Matrix matrix8(3, 3);
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            matrix8[i][j] = 0;
+    // Comment the line below out to receive true for infinite solutions
+    matrix8.setValue(2, 2, 8);
+    matrix8.display();
+    cout << "Infinite solutions: " << matrix8.infiniteSolutions(2) << endl;
+    cout << "No solutions: " << matrix8.noSolutions(2) << endl;
+
+    div("Before RREF");
+    matrix7.display();
+    double* sols2 = matrix7.rref();
+    div("After RREF");
+    matrix7.display();
+    cout << "Solutions work: " << matrix7.solve(sols2, 3) << endl;
     div();
+
+    delete[] sols2;
 
     return 0;
 }
