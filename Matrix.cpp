@@ -434,11 +434,11 @@ void Matrix::display() {
 
 /*
 Name: solve() 
-Parameters: int solutions[], int size
+Parameters: vector<double>, int size
 Return: bool
 Description: Returns true if the solution set works; Otherwise, false. 
 */
-bool Matrix::solve(double solutions[], int size) {
+bool Matrix::solve(vector<double> solutions, int size) {
 
     // Check valid size
     if (size != cols-1)
@@ -497,13 +497,12 @@ Parameters: N/A
 Return: vector<double>
 Description: Performs RREF operation on matrix, returns solutions
 */
-double* Matrix::rref() {
+vector<double> Matrix::rref() {
     if (!isValid()) {
         throw string("Error: Invalid matrix.");
     }
 
-    double* solutions = new double[rows];
-    fill(solutions, solutions + rows, 0);
+    vector<double> solutions;
 
     if (rows == cols - 1) {
         int row = 0, col = 0;
@@ -587,17 +586,15 @@ double* Matrix::rref() {
             for (int i = 0; i < rows; i++) {
                 for (int j = 0; j < cols - 1; j++) {
                     if (fabs(matrix[i][j] - 1) < EPSILON) {
-                        solutions[i] = matrix[i][cols - 1];
+                        solutions.push_back(matrix[i][cols-1]);
                         break;
                     }
                 }
             }
         } else {
-            delete[] solutions;
             throw string("Error: No unique solution or infinite solutions.");
         }
     } else {
-        delete[] solutions;
         throw string("Error: Invalid augmented matrix dimensions.");
     }
 
