@@ -95,13 +95,14 @@ int main() {
 
     div("Before RREF");
     matrix7.display();
-    double* sols2 = matrix7.rref();
+
+    vector<double> sols = matrix7.rref();
+    int numElements = sols.size();
+
     div("After RREF");
     matrix7.display();
-    cout << "Solutions work: " << matrix7.solve(sols2, 3) << endl;
+    cout << "Solutions work: " << matrix7.solve(sols, numElements) << endl;
     div();
-
-    delete[] sols2;
 
     return 0;
 }
