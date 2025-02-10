@@ -9,6 +9,7 @@
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <stdexcept>
 using namespace std;
 
 class Matrix {
@@ -20,6 +21,12 @@ private:
 
     bool isValid() const;
     double greatestCD(vector<double>);
+    void swapRows(int, int);
+    void multiplyRow(int, double);
+    void replaceRow(int, int, double);
+    bool infiniteSolutions(int);
+    bool noSolutions(int);
+    bool canSimplifyRow(int);
 
 public:
     // Constructors and destructor
@@ -41,16 +48,13 @@ public:
     void display();
 
     // Solving
-    // Functions with a * next to them will become private functions
-    bool solve(vector<double>, int);
+    bool solve(vector<double>&, int);
+    void parametricForm();
+    void parametricForm(vector<double>);
+    void parametricVectorForm();
     vector<double> rref();
-    void swapRows(int, int); // *
-    void multiplyRow(int, double); // *
-    void replaceRow(int, int, double); // *
-    bool infiniteSolutions(int); // *
-    bool noSolutions(int); // *
-    bool canSimplifyRow(int); // *
     bool isRREF();
+    bool noSolutions();
 
     // Overloaded operators
     double* operator[](int);
