@@ -11,6 +11,135 @@ bool Matrix::isValid() const {
 }
 
 /*
+Name: getGCD()
+Parameters: long long a, long long b
+Return: long long 
+Description: Returns the greatest common divisor
+Note: Not associated with the Matrix Class
+*/
+long long getGCD(long long a, long long b) {
+    while (b != 0) {
+        long long temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return a;
+}
+
+/*
+Name greatestCD()
+Parameters: vector<double>
+Return: double
+Description: Returns greatest common divisor
+            of doubles. Returns 0 if none found
+*/
+double greatestCD(vector<double> nums) {
+
+    if (nums.empty()) {
+        throw string("Error: Empty vector");
+    }
+
+    // 10 decimal point precision since
+    // we are working with doubles
+    const int precision = 10;
+
+    double scale = pow(10, precision);
+    vector<long long> scaled_nums(nums.size());
+    transform(nums.begin(), nums.end(), scaled_nums.begin(), [&](double num){ 
+        return static_cast<long long>(round(num*scale)); 
+    });
+
+    long long result = scaled_nums[0];
+    for (long unsigned int i = 1; i < scaled_nums.size(); i++) {
+        result = getGCD(result, scaled_nums[i]);
+        if (result == 0)
+            return 0;
+    }
+
+    return static_cast<double>(result) / scale;
+}
+
+/*
+Name: infiniteSolutions()
+Parameters: int row
+Return: bool
+Description: Returns true if a row contains all zeros.
+*/
+bool Matrix::infiniteSolutions(int row) {
+
+    // Valid matrix
+    if (!isValid() || row >= rows) {
+        throw string("Error: Invalid matrix operation");
+    }
+
+    if (matrix[row][cols-1] != 0)
+        return false;
+
+    for (int i = 0; i < cols; i++) {
+        if (matrix[row][i] != 0) {
+            return false;
+        }
+    }
+    return true;
+
+}
+
+/*
+Name: noSolutions()
+Parameters: int row 
+Return: bool
+Description: Returns true if row contains leading zeroes 
+             followed by a non-zero number
+*/
+
+bool Matrix::noSolutions(int row) {
+
+    // Valid matrix
+    if (!isValid() || row >= rows) {
+        throw string("Error: Invalid matrix operation");
+    }
+
+    for (int i = 0; i < cols-1; i++) {
+        if (matrix[row][i] != 0) {
+            return false;
+        }
+    }
+    return matrix[row][cols-1] != 0;
+
+}
+
+/*
+Name: canSimplifyRow()
+Parameters: int row
+Return: bool
+Description: Returns true if the last element is non zero
+            and there is only one non-zero number elsewhere
+*/
+bool Matrix::canSimplifyRow(int row) {
+
+    // Valid matrix
+    if (!isValid() || row >= rows || cols <= 2 || rows <= 2) {
+        throw string("Error: Invalid matrix operation");
+    }
+
+    if (matrix[row][cols-1] == 0)
+        return false;
+
+    int nonZeroCount = 0;
+
+    for (int i = 0; i < cols; i++) {
+        if (matrix[row][i] != 0) {
+            nonZeroCount++;
+            if (nonZeroCount > 1)
+                return false;
+        }
+    }
+
+    return (nonZeroCount == 1);
+
+}
+
+/*
 Name: Matrix()
 Parameters: N/A
 Return: N/A
@@ -172,9 +301,7 @@ Matrix::Matrix(string file) {
 
         rowIndex++;
     }
-
     infile.close();
-
 }
 
 /*
@@ -301,7 +428,7 @@ void Matrix::display() {
             cout << "]" << endl;
         }
     } else {
-        throw string("You are attempting to print out an invalid array.");
+        throw string("You are attempting to print out an invalid matrix.");
     }
 }
 
@@ -311,7 +438,7 @@ Parameters: int solutions[], int size
 Return: bool
 Description: Returns true if the solution set works; Otherwise, false. 
 */
-bool Matrix::solve(int solutions[], int size) {
+bool Matrix::solve(double solutions[], int size) {
 
     // Check valid size
     if (size != cols-1)
@@ -319,7 +446,9 @@ bool Matrix::solve(int solutions[], int size) {
 
     // Check valid array
     if (!isValid()) 
-        throw string("Error: Cannot check solution set on an empty array");
+        throw string("Error: Cannot check solution set on an empty matrix");
+
+    const double EPSILON = 1e-9;
 
     double value = 0;
 
@@ -328,10 +457,151 @@ bool Matrix::solve(int solutions[], int size) {
         for (int j = 0; j < cols-1; j++) {
             value += matrix[i][j] * solutions[j];
         }
-        if (value != matrix[i][cols-1])
+        if (fabs(value - matrix[i][cols-1]) > EPSILON)
             return false;
     }
     return true;
+}
+
+/*
+Name: isRREF()
+Parameters: N/A
+Returns: bool
+Description: Returns true if matrix is in RREF form
+*/
+bool Matrix::isRREF() {
+
+    if (!isValid())
+        return false;
+
+    // Count the number of zeroes in the
+    // coefficient matrix.
+    // If this number is less than
+    // (rows x (cols-1)) - (rows)
+    // then it is not in RREF.
+    int totalZeroes = 0;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols-1; j++) {
+            if (matrix[i][j] == 0)
+                totalZeroes++;
+        }
+    }
+
+    return (totalZeroes == (rows * (cols-1) - rows));
+
+}
+
+/*
+Name: rref()
+Parameters: N/A
+Return: vector<double>
+Description: Performs RREF operation on matrix, returns solutions
+*/
+double* Matrix::rref() {
+    if (!isValid()) {
+        throw string("Error: Invalid matrix.");
+    }
+
+    double* solutions = new double[rows];
+    fill(solutions, solutions + rows, 0);
+
+    if (rows == cols - 1) {
+        int row = 0, col = 0;
+        const double EPSILON = 1e-9;
+
+        while (row < rows && col < cols - 1) {
+            if (fabs(matrix[row][col]) < EPSILON) {
+                bool swapped = false;
+                for (int i = row + 1; i < rows; i++) {
+                    if (fabs(matrix[i][col]) > EPSILON) {
+                        swapRows(row, i);
+                        swapped = true;
+                        break;
+                    }
+                }
+                if (!swapped) {
+                    col++;
+                    continue;
+                }
+            }
+
+            double pivot = matrix[row][col];
+            if (fabs(pivot) > EPSILON) {
+                multiplyRow(row, 1.0 / pivot);
+            }
+
+            for (int i = row + 1; i < rows; i++) {
+                if (fabs(matrix[i][col]) > EPSILON) {
+                    double scaleFactor = matrix[i][col];
+                    replaceRow(i, row, -scaleFactor);
+                }
+            }
+
+            row++;
+            col++;
+        }
+
+        for (int i = rows - 1; i >= 0; i--) {
+            int pivotCol = -1;
+
+            for (int j = 0; j < cols - 1; j++) {
+                if (fabs(matrix[i][j]) > EPSILON) {
+                    pivotCol = j;
+                    break;
+                }
+            }
+
+            if (pivotCol == -1) continue; 
+
+            double pivotValue = matrix[i][pivotCol];
+            if (fabs(pivotValue - 1.0) > EPSILON) {
+                multiplyRow(i, 1.0 / pivotValue);
+            }
+
+            for (int k = i - 1; k >= 0; k--) {
+                if (fabs(matrix[k][pivotCol]) > EPSILON) {
+                    double scaleFactor = matrix[k][pivotCol];
+                    replaceRow(k, i, -1 * scaleFactor);
+                }
+            }
+        }
+
+
+        bool uniqueSolution = true;
+
+        for (int i = 0; i < rows; i++) {
+            bool isZeroRow = true;
+            for (int j = 0; j < cols - 1; j++) {
+                if (fabs(matrix[i][j]) > EPSILON) {
+                    isZeroRow = false;
+                    break;
+                }
+            }
+            if (isZeroRow && fabs(matrix[i][cols - 1]) > EPSILON) {
+                uniqueSolution = false;
+                break;
+            }
+        }
+
+        if (uniqueSolution) {
+            for (int i = 0; i < rows; i++) {
+                for (int j = 0; j < cols - 1; j++) {
+                    if (fabs(matrix[i][j] - 1) < EPSILON) {
+                        solutions[i] = matrix[i][cols - 1];
+                        break;
+                    }
+                }
+            }
+        } else {
+            delete[] solutions;
+            throw string("Error: No unique solution or infinite solutions.");
+        }
+    } else {
+        delete[] solutions;
+        throw string("Error: Invalid augmented matrix dimensions.");
+    }
+
+    return solutions;
 }
 
 /*
@@ -370,7 +640,6 @@ void Matrix::swapRows(int row1, int row2) {
     // Point old rows to new rows
     matrix[row1] = newRow1;
     matrix[row2] = newRow2;
-
 }
 
 /*
@@ -387,7 +656,6 @@ void Matrix::multiplyRow(int row, double value) {
 
     for (int i = 0; i < cols; i++)
         matrix[row][i] *= value;
-
 }
 
 /*
@@ -396,11 +664,14 @@ Parameters: int replaceRow, int getRow, int value
 Return: Void
 Description: replaceRow = replaceRow + (value * getRow)
 */
-void Matrix::replaceRow(int replaceRow, int getRow, int value) {
+void Matrix::replaceRow(int replaceRow, int getRow, double value) {
 
     // Check validity
-    if (!isValid() || replaceRow >= rows || getRow >= rows || value == 0 || replaceRow == getRow)
+    if (!isValid() || replaceRow >= rows || getRow >= rows || value == 0)
         throw string("Error: Invalid matrix index.");
+
+    if (replaceRow == getRow)
+        return;
 
     for (int i = 0; i < cols; i++)
         matrix[replaceRow][i] += value * matrix[getRow][i];
@@ -442,9 +713,7 @@ Matrix& Matrix::operator=(const Matrix& other) {
             matrix[i][j] = other.matrix[i][j];
         }
     }
-
     return *this;
-
 }
 
 /*
