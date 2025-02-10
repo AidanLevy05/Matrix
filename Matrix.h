@@ -5,6 +5,10 @@
 #include <cmath>
 #include <string>
 #include <fstream>
+#include <map>
+#include <vector>
+#include <algorithm>
+#include <numeric>
 using namespace std;
 
 class Matrix {
@@ -15,9 +19,10 @@ private:
     int cols;
 
     bool isValid() const;
+    double greatestCD(vector<double>);
 
 public:
-    // Constructors and destructors
+    // Constructors and destructor
     Matrix();
     Matrix(int, int);
     Matrix(int, int, double);
@@ -37,10 +42,15 @@ public:
 
     // Solving
     // Functions with a * next to them will become private functions
-    bool solve(int[], int);
+    bool solve(double[], int);
+    double* rref();
     void swapRows(int, int); // *
     void multiplyRow(int, double); // *
-    void replaceRow(int, int, int); // *
+    void replaceRow(int, int, double); // *
+    bool infiniteSolutions(int); // *
+    bool noSolutions(int); // *
+    bool canSimplifyRow(int); // *
+    bool isRREF();
 
     // Overloaded operators
     double* operator[](int);
