@@ -42,8 +42,8 @@ public:
 
     // Solving
     // Functions with a * next to them will become private functions
-    bool solve(double[], int);
-    double* rref();
+    bool solve(vector<double>, int);
+    vector<double> rref();
     void swapRows(int, int); // *
     void multiplyRow(int, double); // *
     void replaceRow(int, int, double); // *
