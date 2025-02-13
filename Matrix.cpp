@@ -36,7 +36,7 @@ Description: Returns greatest common divisor
 double greatestCD(vector<double> nums) {
 
     if (nums.empty()) {
-        throw string("Error: Empty vector");
+        throw runtime_error("Error: Empty vector");
     }
 
     // 10 decimal point precision since
@@ -69,7 +69,7 @@ bool Matrix::infiniteSolutions(int row) {
 
     // Valid matrix
     if (!isValid() || row >= rows) {
-        throw string("Error: Invalid matrix operation");
+        throw runtime_error("Error: Invalid matrix operation");
     }
 
     if (matrix[row][cols-1] != 0)
@@ -91,20 +91,42 @@ Return: bool
 Description: Returns true if row contains leading zeroes 
              followed by a non-zero number
 */
-
 bool Matrix::noSolutions(int row) {
 
     // Valid matrix
     if (!isValid() || row >= rows) {
-        throw string("Error: Invalid matrix operation");
+        throw runtime_error("Error: Invalid matrix operation");
     }
 
+    const double EPSILON = 1e-5;
+
     for (int i = 0; i < cols-1; i++) {
-        if (matrix[row][i] != 0) {
+        if (fabs(matrix[row][i]) > EPSILON) {
             return false;
         }
     }
-    return matrix[row][cols-1] != 0;
+    return fabs(matrix[row][cols-1]) > EPSILON;
+
+}
+
+/*
+Name: noSolutions()
+Parameters: N/A
+Return: bool 
+Description: Calls other noSolutions(int) and checks all rows. 
+*/
+bool Matrix::noSolutions() {
+
+    // Valid matrix
+    if (!isValid()) {
+        throw runtime_error("Error: Invalid matrix operation");
+    }
+
+    for (int i = 0; i < rows; i++)
+        if (noSolutions(i)) 
+            return true;
+        
+    return false;
 
 }
 
@@ -119,7 +141,7 @@ bool Matrix::canSimplifyRow(int row) {
 
     // Valid matrix
     if (!isValid() || row >= rows || cols <= 2 || rows <= 2) {
-        throw string("Error: Invalid matrix operation");
+        throw runtime_error("Error: Invalid matrix operation");
     }
 
     if (matrix[row][cols-1] == 0)
@@ -158,7 +180,7 @@ Description: Default Constructor with Matrix Size
 */
 Matrix::Matrix(int r, int c) {
     if (r < 1 || c < 1) {
-        throw string("Error: Invalid matrix dimension size.");
+        throw runtime_error("Error: Invalid matrix dimension size.");
     }
 
     rows = r;
@@ -182,7 +204,7 @@ Description: Default Constructor with Matrix Size and default value
 */
 Matrix::Matrix(int r, int c, double defval) {
     if (r < 1 || c < 1) {
-        throw string("Error: Invalid matrix dimension size.");
+        throw runtime_error("Error: Invalid matrix dimension size.");
     }
 
     rows = r;
@@ -241,7 +263,7 @@ Matrix::Matrix(string file) {
 
     ifstream infile(file);
     if (!infile)
-        throw string("Error opening file");
+        throw runtime_error("Error opening file");
 
     while(getline(infile, line)) {
         // increment rows by one
@@ -262,7 +284,7 @@ Matrix::Matrix(string file) {
     // Checking cols <= 1 because if there
     // are 0 whitespaces, cols still equals 1.
     if (rows == 0 || cols <= 1)
-        throw string("Error: Invalid matrix dimensions");
+        throw runtime_error("Error: Invalid matrix dimensions");
 
     // Allocate memory
     matrix = new double*[rows];
@@ -275,7 +297,7 @@ Matrix::Matrix(string file) {
     // Reopen file and read in numbers
     infile.open(file);
     if (!infile)
-        throw string("Error opening file");
+        throw runtime_error("Error opening file");
 
     while(getline(infile, line)) {
         colIndex = 0;
@@ -291,7 +313,7 @@ Matrix::Matrix(string file) {
                     colIndex++;
                 }
             } else {
-                throw string("Error: Invalid character read from constructor");
+                throw runtime_error("Error: Invalid character read from constructor");
             }
         }
 
@@ -324,7 +346,7 @@ Description: Change one element of the matrix
 */
 void Matrix::setValue(int r, int c, double value) {
     if (r < 0 || c < 0 || r >= rows || c >= cols) {
-        throw string("Error: Invalid matrix dimension size.");
+        throw runtime_error("Error: Invalid matrix dimension size.");
     } 
     matrix[r][c] = value;
 }
@@ -341,7 +363,7 @@ void Matrix::setRandom(int max) {
             for (int j = 0; j < cols; j++)
                 matrix[i][j] = rand() % max;
     } else {
-        throw string("Error: Matrix is not correctly initialized.");
+        throw runtime_error("Error: Matrix is not correctly initialized.");
     }
 }
 
@@ -353,10 +375,10 @@ Description: Returns a given value from the matrix
 */
 double Matrix::getValue(int r, int c) {
     if (r < 0 || c < 0 || r >= rows || c >= cols) {
-        throw string("Error: Invalid matrix dimension size.");
+        throw runtime_error("Error: Invalid matrix dimension size.");
     } 
     if (!isValid()) {
-        throw string("Error: Cannot return value from invalid matrix.");
+        throw runtime_error("Error: Cannot return value from invalid matrix.");
     }
     return matrix[r][c];
 }
@@ -369,7 +391,7 @@ Description: Sets the parameters of the matrix
 */
 void Matrix::setDimensions(int r, int c) {
     if (r < 1 || c < 1) {
-        throw string("Error: Invalid matrix dimension size.");
+        throw runtime_error("Error: Invalid matrix dimension size.");
     }
 
     if (matrix != nullptr) {
@@ -419,16 +441,24 @@ Return: void
 Description: Prints all elements of the array neatly.
 */
 void Matrix::display() {
+
+    const double EPSILON = 1e-4;
+    const int WIDTH = 8;
+    const int PRECISION = 2;
+
     if (isValid()) {
         for (int i = 0; i < rows; i++) {
             cout << "[";
             for (int j = 0; j < cols; j++) {
-                cout << " " << matrix[i][j] << " ";
+                double value = matrix[i][j];
+                if (abs(value) < EPSILON)
+                    value = 0.0;
+                cout << setw(WIDTH) << fixed << setprecision(PRECISION) << value << " ";
             }
             cout << "]" << endl;
         }
     } else {
-        throw string("You are attempting to print out an invalid matrix.");
+        throw runtime_error("You are attempting to print out an invalid matrix.");
     }
 }
 
@@ -438,18 +468,13 @@ Parameters: vector<double>, int size
 Return: bool
 Description: Returns true if the solution set works; Otherwise, false. 
 */
-bool Matrix::solve(vector<double> solutions, int size) {
-
-    // Check valid size
-    if (size != cols-1)
-        throw string("Error: Invalid solution set size");
+bool Matrix::solve(vector<double>& solutions, int size) {
 
     // Check valid array
-    if (!isValid()) 
-        throw string("Error: Cannot check solution set on an empty matrix");
+    if (!isValid() || solutions.size() != static_cast<long unsigned int>(size)) 
+        throw runtime_error("Error: Cannot check solution set on an empty matrix");
 
-    const double EPSILON = 1e-9;
-
+    const double EPSILON = 1e-5;
     double value = 0;
 
     for (int i = 0; i < rows; i++) {
@@ -492,6 +517,87 @@ bool Matrix::isRREF() {
 }
 
 /*
+Name: parametricForm()
+Parameters: N/A
+Return: Void 
+Description: Solves the matrix using rref(), then
+            prints out the variables in parametric form
+*/
+void Matrix::parametricForm() {
+
+    // Validity
+    if (!isValid())
+        throw runtime_error("Error: Cannot do parametric form");
+
+    vector<double> solutions = rref();
+
+    if (rows == cols-1) {
+        cout << endl << "Parametric Form: " << endl;
+        for (long unsigned int i = 0; i < solutions.size(); i++) {
+            cout << "x" << (i+1) << ": " << solutions[i] << endl;
+        }
+        cout << endl;
+    } else if (rows != cols-1 || noSolutions()) {
+        throw runtime_error("WARNING: This code is not completed yet.");
+    }
+
+}
+
+/*
+Name: parametricForm(); 
+Parameters: vector<double>
+Return: Void
+Description: Same as above except is it designed to be called from the
+            rref() function. Since the one above calls the rref()
+            functiion, calling it twice would be a waste
+            of resources.
+*/
+void Matrix::parametricForm(vector<double> sols) {
+
+    // Validity
+    if (!isValid())
+        throw runtime_error("Error: Cannot find parametric form");
+
+    if (rows == cols-1) {
+        cout << endl << "Parametric Form: " << endl;
+        for (long unsigned int i = 0; i < sols.size(); i++) {
+            cout << "x" << (i+1) << ": " << sols[i] << endl;
+        }
+        cout << endl;
+    } else if (rows != cols-1 || noSolutions()) {
+        throw runtime_error("WARNING: This code is not completed yet.");
+    }
+
+}
+
+/*
+Name: parametricVectorForm()
+Parameters: N/A
+Return: Void 
+Description: Prints out the solutions in parametric vector form nicely. 
+*/
+void Matrix::parametricVectorForm() {
+
+    // Validity
+    if (!isValid())
+        throw runtime_error("Error: Cannot find parametric form");
+
+    // Save solutions as an n x 1 vector
+    if (rows == cols-1) {
+        Matrix vector(rows, 1);
+        for (int i = 0; i < rows; i++) 
+            vector.setValue(i, 0, matrix[i][cols-1]);
+
+        cout << endl << "Parametric Vector Form:" << endl;
+        vector.display();
+        cout << endl;
+    } else if (rows != cols-1 || noSolutions()) {
+        throw runtime_error("WARNING: This code is not completed yet.");
+    }
+
+}
+
+/*
 Name: rref()
 Parameters: N/A
 Return: vector<double>
@@ -499,103 +605,159 @@ Description: Performs RREF operation on matrix, returns solutions
 */
 vector<double> Matrix::rref() {
     if (!isValid()) {
-        throw string("Error: Invalid matrix.");
+        throw runtime_error("Error: Invalid matrix.");
     }
 
+    // use epsilon to negative very small value
     vector<double> solutions;
+    int row = 0, col = 0;
+    const double EPSILON = 1e-5;
+    bool noSols = false;
 
-    if (rows == cols - 1) {
-        int row = 0, col = 0;
-        const double EPSILON = 1e-9;
+    // Convert into echelon form
+    while (row < rows && col < cols - 1) {
 
-        while (row < rows && col < cols - 1) {
-            if (fabs(matrix[row][col]) < EPSILON) {
-                bool swapped = false;
-                for (int i = row + 1; i < rows; i++) {
-                    if (fabs(matrix[i][col]) > EPSILON) {
-                        swapRows(row, i);
-                        swapped = true;
-                        break;
-                    }
-                }
-                if (!swapped) {
-                    col++;
-                    continue;
-                }
-            }
+        // if current pivot element is close to zero, try to swap the rows
+        if (fabs(matrix[row][col]) < EPSILON) {
+            bool swapped = false;
 
-            double pivot = matrix[row][col];
-            if (fabs(pivot) > EPSILON) {
-                multiplyRow(row, 1.0 / pivot);
-            }
-
+            // look for non-zero element in the same column
             for (int i = row + 1; i < rows; i++) {
                 if (fabs(matrix[i][col]) > EPSILON) {
-                    double scaleFactor = matrix[i][col];
-                    replaceRow(i, row, -scaleFactor);
-                }
-            }
-
-            row++;
-            col++;
-        }
-
-        for (int i = rows - 1; i >= 0; i--) {
-            int pivotCol = -1;
-
-            for (int j = 0; j < cols - 1; j++) {
-                if (fabs(matrix[i][j]) > EPSILON) {
-                    pivotCol = j;
+                    swapRows(row, i);
+                    swapped = true;
                     break;
                 }
             }
 
-            if (pivotCol == -1) continue; 
-
-            double pivotValue = matrix[i][pivotCol];
-            if (fabs(pivotValue - 1.0) > EPSILON) {
-                multiplyRow(i, 1.0 / pivotValue);
-            }
-
-            for (int k = i - 1; k >= 0; k--) {
-                if (fabs(matrix[k][pivotCol]) > EPSILON) {
-                    double scaleFactor = matrix[k][pivotCol];
-                    replaceRow(k, i, -1 * scaleFactor);
-                }
+            // If no non-zero pivot found
+            // go to next column
+            if (!swapped) {
+                col++;
+                continue;
             }
         }
 
+        // Multiply the pivot row by its reciprocal
+        double pivot = matrix[row][col];
+        if (fabs(pivot) > EPSILON) {
+            multiplyRow(row, 1.0 / pivot);
+        }
 
-        bool uniqueSolution = true;
-
-        for (int i = 0; i < rows; i++) {
-            bool isZeroRow = true;
-            for (int j = 0; j < cols - 1; j++) {
-                if (fabs(matrix[i][j]) > EPSILON) {
-                    isZeroRow = false;
-                    break;
-                }
+        // get rid of non-zero elements below the pivot
+        for (int i = row + 1; i < rows; i++) {
+            if (fabs(matrix[i][col]) > EPSILON) {
+                double scaleFactor = matrix[i][col];
+                replaceRow(i, row, -1 * scaleFactor);
             }
-            if (isZeroRow && fabs(matrix[i][cols - 1]) > EPSILON) {
-                uniqueSolution = false;
+        }
+
+        // Increment rows and cols
+        row++;
+        col++;
+    }
+
+    // convert to RREF
+    for (int i = rows - 1; i >= 0; i--) {
+        int pivotCol = -1;
+
+        // find pivot column in current row
+        for (int j = 0; j < cols - 1; j++) {
+            if (fabs(matrix[i][j]) > EPSILON) {
+                pivotCol = j;
                 break;
             }
         }
 
-        if (uniqueSolution) {
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < cols - 1; j++) {
-                    if (fabs(matrix[i][j] - 1) < EPSILON) {
-                        solutions.push_back(matrix[i][cols-1]);
-                        break;
-                    }
+        // no pivot, move on
+        if (pivotCol == -1) continue; 
+
+        // make sure pivot value is 1
+        double pivotValue = matrix[i][pivotCol];
+        if (fabs(pivotValue - 1.0) > EPSILON) {
+            multiplyRow(i, 1.0 / pivotValue);
+        }
+
+        // eliminate non-zero values above the pivot
+        for (int k = i - 1; k >= 0; k--) {
+            if (fabs(matrix[k][pivotCol]) > EPSILON) {
+                double scaleFactor = matrix[k][pivotCol];
+                replaceRow(k, i, -1 * scaleFactor);
+            }
+        }
+    }
+
+    // Ensure is a unique solution
+    bool uniqueSolution = true;
+
+    // check if inconsistent
+    for(int i = 0; i < rows; i++) {
+        if (noSolutions(i)) {
+            noSols = true;
+        }
+    }
+
+    // Find unique values
+    if (uniqueSolution && !noSols) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols - 1; j++) {
+                if (fabs(matrix[i][j] - 1) < EPSILON) {
+                    solutions.push_back(matrix[i][cols-1]);
+                    break;
                 }
             }
-        } else {
-            throw string("Error: No unique solution or infinite solutions.");
         }
-    } else {
-        throw string("Error: Invalid augmented matrix dimensions.");
+    } else if (!uniqueSolution && !noSols) {
+        // seperate the basic and free variables
+        // by 0.0 in the middle.
+        vector<int> pivotCols;
+        vector<int> freeCols;
+
+        // find basic cols
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols - 1; j++) {
+                if (fabs(matrix[i][j] - 1) < EPSILON) {
+                    pivotCols.push_back(j);
+                    break;
+                }
+            }
+        }
+
+        // find free cols
+        for (int i = 0; i < cols - 1; i++) {
+            if (find(pivotCols.begin(), pivotCols.end(), i) == pivotCols.end()) {
+                freeCols.push_back(i);
+            }
+        }
+
+        // store solution for basic vars
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols - 1; j++) {
+                if (fabs(matrix[i][j] - 1) < EPSILON) {
+                    solutions.push_back(matrix[i][cols-1]);
+                    break;
+                }
+            }
+        }
+
+        // insert separator
+        solutions.push_back(0.0);
+
+        // store parametric components
+        for (int freeCol : freeCols) {
+            for (int i = 0; i < rows; i++) {
+                if (fabs(matrix[i][freeCol]) > EPSILON) {
+                    solutions.push_back(-1 * matrix[i][freeCol]);
+                }
+            }
+        }
+
+        parametricForm(solutions);
+
+    } 
+
+    if (noSols) {
+        throw runtime_error("Warning: The matrix has no solutions.");
     }
 
     return solutions;
@@ -611,7 +773,7 @@ void Matrix::swapRows(int row1, int row2) {
 
     // Check for validity
     if (!isValid() || row1 >= rows || row2 >= rows) {
-        throw string("Error: Invalid matrix index.");
+        throw runtime_error("Error: Invalid matrix index.");
     }
 
     // Don't waste resources swapping
@@ -649,7 +811,7 @@ void Matrix::multiplyRow(int row, double value) {
 
     // Check validity
     if (!isValid() || row >= rows || value == 0)
-        throw string("Error: Invalid matrix index.");
+        throw runtime_error("Error: Invalid matrix index.");
 
     for (int i = 0; i < cols; i++)
         matrix[row][i] *= value;
@@ -665,7 +827,7 @@ void Matrix::replaceRow(int replaceRow, int getRow, double value) {
 
     // Check validity
     if (!isValid() || replaceRow >= rows || getRow >= rows || value == 0)
-        throw string("Error: Invalid matrix index.");
+        throw runtime_error("Error: Invalid matrix index.");
 
     if (replaceRow == getRow)
         return;
@@ -683,7 +845,7 @@ Description: Returns double* to access a given element
 */
 double* Matrix::operator[](int index) {
     if (index < 0 || index >= rows) {
-        throw string("Error: Invalid matrix index.");
+        throw runtime_error("Error: Invalid matrix index.");
     }
     return matrix[index];
 }
@@ -721,7 +883,7 @@ Description: Returns multiplied matrix
 */
 Matrix Matrix::operator*(Matrix& other) {
     if (cols != other.rows || !isValid() || !other.isValid()) {
-        throw string("Error: Cannot multiply matricies with invalid dimensions.");
+        throw runtime_error("Error: Cannot multiply matricies with invalid dimensions.");
     }
 
     // If you are multiplying matricies A x B = C
@@ -748,7 +910,7 @@ Description: Returns sum of two matricies
 */
 Matrix Matrix::operator+(Matrix& other) {
     if (!isValid() || !other.isValid() || cols != other.cols || rows != other.rows) {
-        throw string("Error: Cannot add matricies with invalid dimensions.");
+        throw runtime_error("Error: Cannot add matricies with invalid dimensions.");
     }
 
     int newRows = rows;
@@ -770,7 +932,7 @@ Description: Returns difference of two matricies
 */
 Matrix Matrix::operator-(Matrix& other) {
     if (!isValid() || !other.isValid() || cols != other.cols || rows != other.rows) {
-        throw string("Error: Cannot add matricies with invalid dimensions.");
+        throw runtime_error("Error: Cannot add matricies with invalid dimensions.");
     }
 
     int newRows = rows;
