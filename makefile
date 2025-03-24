@@ -1,20 +1,29 @@
-PROG = prog 
-CC = g++
-CPPFLAGS = -g -Wall -std=c++11 
-OBJS = main.o Matrix.o 
+# Variables
+PROG = prog
+CC = mpicc 
+CFLAGS = -g -Wall -std=c11
+OBJS = main.o MatrixC.o
 
-$(PROG) : $(OBJS) 
-	$(CC) -o $(PROG) $(OBJS)
+# Default target
+all: $(PROG)
 
-main.o : main.cpp 
-	$(CC) $(CPPFLAGS) -c main.cpp
+# Link objects to create executable
+$(PROG): $(OBJS)
+	$(CC) $(CFLAGS) -o $(PROG) $(OBJS) -lm
 
-Matrix.o : Matrix.h Matrix.cpp 
-	$(CC) $(CPPFLAGS) -c Matrix.cpp
+# Compile main.c to main.o
+main.o: main.c MatrixC.h
+	$(CC) $(CFLAGS) -c main.c
 
+# Compile MatrixC.c to MatrixC.o
+MatrixC.o: MatrixC.c MatrixC.h
+	$(CC) $(CFLAGS) -c MatrixC.c
+
+# Clean object files and executable
 clean:
-	rm -f core $(PROG) $(OBJS) 
+	rm -f $(OBJS) $(PROG)
 
+# Rebuild the program
 rebuild:
 	make clean 
 	make
