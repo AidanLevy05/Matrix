@@ -184,6 +184,8 @@ Description: Default Constructor
 */
 Matrix::Matrix()
 {
+  rows = 0;
+  cols = 0;
 }
 
 /*
