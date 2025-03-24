@@ -309,49 +309,41 @@ bool solve(const Matrix *m, const double solutions[], const int size)
 
 /*
 Name: multiplyMatrix()
-Parameters: const Matrix* A, const Matrix *B, Matrix *result
+Parameters: const Matrix* A, const Matrix* B, Matrix* result
 Return: void
-Description: Multiplies A * B and saves the result
+Description: Multiplies A * B and saves the result using MPI parallelism.
 */
 void multiplyMatrix(const Matrix *A, const Matrix *B, Matrix *result)
 {
-  if (A->cols != B->rows)
+
+  if (!isValid(A) || !isValid(B) || A->cols != B->rows)
   {
-    error("Matrix dimension mismatch");
+    error("Invalid matrix in matrix multiplication");
   }
 
-  if (!isValid(A) || !isValid(B))
-  {
-    error("Invalid matrix");
-  }
-
-  // OpenMPI setup
-  int rank, size, rowsPerProcess, startRow, endRow;
+  int rank, size;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
-  rowsPerProcess = A->rows / size;
-  startRow = rank * rowsPerProcess;
-  endRow = (rank == size - 1) ? A->rows : (rank + 1) * rowsPerProcess;
 
-  Matrix localResult;
-  localResult.rows = rowsPerProcess;
-  localResult.cols = B->cols;
+  int rows_per_proc = A->rows / size;
+  int remaining_rows = A->rows % size;
+  int start = rank * rows_per_proc + (rank < remaining_rows ? rank : remaining_rows);
+  int end = start + rows_per_proc + (rank < remaining_rows ? 1 : 0);
 
-  for (int i = startRow; i < endRow; i++)
+  for (int i = start; i < end; i++)
   {
     for (int j = 0; j < B->cols; j++)
     {
-      localResult.matrix[i - startRow][j] = 0;
+      result->matrix[i][j] = 0;
       for (int k = 0; k < A->cols; k++)
       {
-        localResult.matrix[i - startRow][j] += A->matrix[i][k] * B->matrix[k][j];
+        result->matrix[i][j] += A->matrix[i][k] * B->matrix[k][j];
       }
     }
   }
 
-  // Get all results
-  MPI_Gather(localResult.matrix, rowsPerProcess * B->cols, MPI_DOUBLE,
-             result->matrix, rowsPerProcess * B->cols, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, result->matrix, MAX_ROWS * MAX_COLS, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 }
 
 /*
@@ -367,16 +359,25 @@ void addMatrix(const Matrix *A, const Matrix *B, Matrix *result)
     error("Invalid matrix size");
   }
 
-  result->rows = A->rows;
-  result->cols = B->cols;
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  for (int i = 0; i < result->rows; i++)
+  int rows_per_proc = A->rows / size;
+  int remaining_rows = A->rows % size;
+  int start = rank * rows_per_proc + (rank < remaining_rows ? rank : remaining_rows);
+  int end = start + rows_per_proc + (rank < remaining_rows ? 1 : 0);
+
+  for (int i = start; i < end; i++)
   {
-    for (int j = 0; j < result->cols; j++)
+    for (int j = 0; j < A->cols; j++)
     {
       result->matrix[i][j] = A->matrix[i][j] + B->matrix[i][j];
     }
   }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, result->matrix, MAX_ROWS * MAX_COLS, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 }
 
 /*
@@ -392,16 +393,30 @@ void subtractMatrix(const Matrix *A, const Matrix *B, Matrix *result)
     error("Invalid matrix size");
   }
 
-  result->rows = A->rows;
-  result->cols = B->cols;
-
-  for (int i = 0; i < result->rows; i++)
+  if (!isValid(A) || !isValid(B) || A->cols != B->cols || A->rows != B->rows)
   {
-    for (int j = 0; j < result->cols; j++)
+    error("Invalid matrix size");
+  }
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  int rows_per_proc = A->rows / size;
+  int remaining_rows = A->rows % size;
+  int start = rank * rows_per_proc + (rank < remaining_rows ? rank : remaining_rows);
+  int end = start + rows_per_proc + (rank < remaining_rows ? 1 : 0);
+
+  for (int i = start; i < end; i++)
+  {
+    for (int j = 0; j < A->cols; j++)
     {
       result->matrix[i][j] = A->matrix[i][j] - B->matrix[i][j];
     }
   }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, result->matrix, MAX_ROWS * MAX_COLS, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 }
 
 /*
@@ -417,6 +432,10 @@ void ref(Matrix *m)
   {
     error("Invalid matrix");
   }
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   int lead = 0;
   int rowCount = m->rows;
@@ -454,6 +473,12 @@ void ref(Matrix *m)
       m->matrix[r][j] /= divisor;
     }
 
+    // OpenMPI starts here
+    MPI_Bcast(m->matrix[r], colCount, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    int rows_per_proc = (rowCount - (r + 1)) / size;
+    int remaining_rows = (rowCount - (r + 1)) % size;
+
     // eliminate all entries below the pivot
     for (int i = r + 1; i < rowCount; i++)
     {
@@ -464,6 +489,18 @@ void ref(Matrix *m)
         {
           m->matrix[i][j] -= factor * m->matrix[r][j];
         }
+      }
+    }
+
+    // gather everything back
+    for (int proc = 0; proc < size; proc++)
+    {
+      int proc_start = r + 1 + proc * rows_per_proc + (proc < remaining_rows ? proc : remaining_rows);
+      int proc_end = proc_start + rows_per_proc + (proc < remaining_rows ? 1 : 0);
+
+      for (int row = proc_start; row < proc_end; row++)
+      {
+        MPI_Bcast(m->matrix[row], colCount, MPI_DOUBLE, proc, MPI_COMM_WORLD);
       }
     }
 
@@ -485,6 +522,10 @@ void rref(Matrix *m)
     error("Invalid matrix");
   }
 
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
   ref(m);
 
   int rowCount = m->rows;
@@ -496,8 +537,14 @@ void rref(Matrix *m)
     if (m->matrix[r][r] == 0)
       continue;
 
-    // eliminate above pivot
-    for (int i = r - 1; i >= 0; i--)
+    // Broadcast pivot row
+    MPI_Bcast(m->matrix[r], colCount, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    int rows_per_proc = r / size;
+    int remaining_rows = r % size;
+    int start = rank * rows_per_proc + (rank < remaining_rows ? rank : remaining_rows);
+    int end = start + rows_per_proc + (rank < remaining_rows ? 1 : 0);
+
+    for (int i = start; i < end; i++)
     {
       if (m->matrix[i][r] != 0)
       {
@@ -506,6 +553,19 @@ void rref(Matrix *m)
         {
           m->matrix[i][j] -= factor * m->matrix[r][j];
         }
+      }
+    }
+
+    // get other rows back
+    // Broadcast updated rows back
+    for (int proc = 0; proc < size; proc++)
+    {
+      int proc_start = proc * rows_per_proc + (proc < remaining_rows ? proc : remaining_rows);
+      int proc_end = proc_start + rows_per_proc + (proc < remaining_rows ? 1 : 0);
+
+      for (int row = proc_start; row < proc_end; row++)
+      {
+        MPI_Bcast(m->matrix[row], colCount, MPI_DOUBLE, proc, MPI_COMM_WORLD);
       }
     }
   }
