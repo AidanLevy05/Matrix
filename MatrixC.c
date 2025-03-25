@@ -127,14 +127,27 @@ Description: Displays the matrix
 */
 void display(const Matrix *m)
 {
-  for (int i = 0; i < m->rows; i++)
+  int maxRows = 10, maxCols = 10;
+  int showAllRows = m->rows <= maxRows;
+  int showAllCols = m->cols <= maxCols;
+
+  for (int i = 0; i < (showAllRows ? m->rows : maxRows); i++)
   {
     printf("[");
-    for (int j = 0; j < m->cols; j++)
+    for (int j = 0; j < (showAllCols ? m->cols : maxCols); j++)
     {
-      printf(" %6.2f ", m->matrix[i][j]);
+      printf(" %7.2f", m->matrix[i][j]);
     }
-    printf("]\n");
+    if (!showAllCols)
+      printf("   ...");
+    printf(" ]\n");
+  }
+  if (!showAllRows)
+  {
+    int width = (showAllCols ? m->cols : maxCols) * 8 + (showAllCols ? 2 : 6);
+    for (int i = 0; i < width; i++)
+      printf(" ");
+    printf("...\n");
   }
 }
 
@@ -268,7 +281,7 @@ void displayDimensions(const Matrix *m)
 }
 
 /*
-Name: isSquareMatrix()
+Name: isSquare()
 Parameters: const Matrix* A
 Return: bool
 Description: Returns true if the matrix is square
@@ -276,6 +289,93 @@ Description: Returns true if the matrix is square
 bool isSquare(const Matrix *A)
 {
   return A->rows == A->cols;
+}
+
+/*
+Name: transpose()
+Parameters: const Matrix *input, Matrix *output
+Return: void
+Description: Transposes the input matrix, stores result in output matrix
+*/
+void transpose(const Matrix *input, Matrix *output)
+{
+
+  if (!isValid(input))
+  {
+    error("Invalid matrix in transpose");
+  }
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Bcast((void *)input, sizeof(Matrix), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+  output->rows = input->cols;
+  output->cols = input->rows;
+
+  int rows_per_proc = input->rows / size;
+  int remaining_rows = input->rows % size;
+  int start = rank * rows_per_proc + (rank < remaining_rows ? rank : remaining_rows);
+  int end = start + rows_per_proc + (rank < remaining_rows ? 1 : 0);
+
+  for (int i = start; i < end; i++)
+  {
+    for (int j = 0; j < input->cols; j++)
+    {
+      output->matrix[j][i] = input->matrix[i][j];
+    }
+  }
+
+  // back to all processes
+  for (int proc = 0; proc < size; proc++)
+  {
+    int proc_start = proc * rows_per_proc + (proc < remaining_rows ? proc : remaining_rows);
+    int proc_end = proc_start + rows_per_proc + (proc < remaining_rows ? 1 : 0);
+
+    for (int row = 0; row < input->cols; row++)
+    {
+      for (int col = proc_start; col < proc_end; col++)
+      {
+        MPI_Bcast(&output->matrix[row][col], 1, MPI_DOUBLE, proc, MPI_COMM_WORLD);
+      }
+    }
+  }
+}
+
+/*
+Name: writeToFile()
+Parameters: const Matrix*, const char* filename
+Return: void
+Description: Writes a matrix to a file
+*/
+void writeToFile(const Matrix *m, const char *filename)
+{
+  if (!isValid(m))
+  {
+    error("Invalid matrix");
+  }
+
+  FILE *file = fopen(filename, "w");
+  if (file == NULL)
+  {
+    error("Unable to open file for writing");
+  }
+
+  fprintf(file, "Rows: %d, Cols: %d\n", m->rows, m->cols);
+  for (int i = 0; i < 25; i++)
+    fprintf(file, "-");
+  fprintf(file, "\n");
+
+  for (int i = 0; i < m->rows; i++)
+  {
+    for (int j = 0; j < m->cols; j++)
+    {
+      fprintf(file, "%lf ", m->matrix[i][j]);
+    }
+    fprintf(file, "\n");
+  }
+
+  fclose(file);
 }
 
 /*
@@ -568,5 +668,76 @@ void rref(Matrix *m)
         MPI_Bcast(m->matrix[row], colCount, MPI_DOUBLE, proc, MPI_COMM_WORLD);
       }
     }
+  }
+}
+
+/*
+Name: LU
+Parameters: const Matrix *A, Matrix *L, Matrix *U
+Return: void
+Description: Performs LU decomposition on matrix A
+          Fills L with the lower and U with the upper.
+          A = L * U
+
+*/
+void LU(const Matrix *A, Matrix *L, Matrix *U)
+{
+
+  if (!isValid(A))
+  {
+    error("Cannot perform LU decomposition on invalid matrix.");
+  }
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  int n = A->rows;
+
+  for (int i = 0; i < n; ++i)
+    for (int j = 0; j < n; ++j)
+      L->matrix[i][j] = U->matrix[i][j] = 0;
+
+  for (int k = 0; k < n; ++k)
+  {
+    if (rank == 0)
+    {
+      for (int j = k; j < n; ++j)
+      {
+        double sum = 0;
+        for (int s = 0; s < k; ++s)
+          sum += L->matrix[k][s] * U->matrix[s][j];
+        U->matrix[k][j] = A->matrix[k][j] - sum;
+      }
+
+      for (int i = k + 1; i < n; ++i)
+      {
+        double sum = 0;
+        for (int s = 0; s < k; ++s)
+          sum += L->matrix[i][s] * U->matrix[s][k];
+        L->matrix[i][k] = (A->matrix[i][k] - sum) / U->matrix[k][k];
+      }
+
+      L->matrix[k][k] = 1.0;
+
+      for (int p = 1; p < size; ++p)
+      {
+        MPI_Send(U->matrix[k] + k, n - k, MPI_DOUBLE, p, 0, MPI_COMM_WORLD);
+        double column[n];
+        for (int i = k + 1; i < n; ++i)
+          column[i] = L->matrix[i][k];
+        MPI_Send(column + k + 1, n - k - 1, MPI_DOUBLE, p, 1, MPI_COMM_WORLD);
+      }
+    }
+    else
+    {
+      MPI_Recv(U->matrix[k] + k, n - k, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      double column[n];
+      MPI_Recv(column + k + 1, n - k - 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      for (int i = k + 1; i < n; ++i)
+        L->matrix[i][k] = column[i];
+      L->matrix[k][k] = 1.0;
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
   }
 }
