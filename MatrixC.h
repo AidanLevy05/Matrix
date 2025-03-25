@@ -1,8 +1,8 @@
 #ifndef MATRIXC_H
 #define MATRIXC_H
 
-#define MAX_ROWS 100
-#define MAX_COLS 100
+#define MAX_ROWS 4000
+#define MAX_COLS 4000
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +45,8 @@ void setRandom(Matrix *, const int);
 double getValue(Matrix *, const int, const int);
 void displayDimensions(const Matrix *);
 bool isSquare(const Matrix *);
+void transpose(const Matrix *, Matrix *);
+void writeToFile(const Matrix *, const char *);
 
 /* Solving */
 bool solve(const Matrix *, const double[], const int);
@@ -53,5 +55,6 @@ void addMatrix(const Matrix *, const Matrix *, Matrix *);
 void subtractMatrix(const Matrix *, const Matrix *, Matrix *);
 void ref(Matrix *);
 void rref(Matrix *);
+void LU(const Matrix *, Matrix *, Matrix *);
 
 #endif /* MATRIXC_H */
