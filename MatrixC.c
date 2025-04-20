@@ -409,41 +409,286 @@ bool solve(const Matrix *m, const double solutions[], const int size)
 
 /*
 Name: multiplyMatrix()
-Parameters: const Matrix* A, const Matrix* B, Matrix* result
+Parameters: const Matrix *A, const Matrix *B, Matrix *C
 Return: void
-Description: Multiplies A * B and saves the result using MPI parallelism.
+Description: Multiplies matrix A and B using OpenMPI and stores result in matrix C.
 */
-void multiplyMatrix(const Matrix *A, const Matrix *B, Matrix *result)
+void multiplyMatrix(const Matrix *A, const Matrix *B, Matrix *C)
 {
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  if (!isValid(A) || !isValid(B) || A->cols != B->rows)
+  int a_rows = A->rows;
+  int a_cols = A->cols;
+  int b_cols = B->cols;
+
+  if (rank == 0)
   {
-    error("Invalid matrix in matrix multiplication");
+    if (!isValid(A) || !isValid(B))
+      error("Invalid input matrices");
+    if (a_cols != B->rows)
+      error("Incompatible dimensions for multiplication");
   }
+
+  // Broadcast matrix dimensions
+  MPI_Bcast(&a_rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&a_cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&b_cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  // Broadcast B (whole matrix)
+  MPI_Bcast((void *)B->matrix, MAX_ROWS * MAX_COLS, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+  // Calculate local rows
+  int rows_per_proc = a_rows / size;
+  int remainder = a_rows % size;
+  int local_rows = (rank < remainder) ? rows_per_proc + 1 : rows_per_proc;
+  printf("Rank %d received %d rows, computing...\n", rank, local_rows);
+
+  // Allocate only as much as needed
+  double local_A[local_rows][a_cols];
+  double local_C[local_rows][b_cols];
+  memset(local_C, 0, sizeof(local_C));
+
+  // Prepare scatter metadata
+  int sendcounts[size];
+  int displs[size];
+  int offset = 0;
+  for (int i = 0; i < size; i++)
+  {
+    int count = ((i < remainder) ? rows_per_proc + 1 : rows_per_proc) * a_cols;
+    sendcounts[i] = count;
+    displs[i] = offset;
+    offset += count;
+  }
+
+  // Scatter A rows to processes
+  MPI_Scatterv(&(A->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
+               &(local_A[0][0]), local_rows * a_cols, MPI_DOUBLE,
+               0, MPI_COMM_WORLD);
+
+  // Compute local result
+  for (int i = 0; i < local_rows; i++)
+  {
+    for (int j = 0; j < b_cols; j++)
+    {
+      for (int k = 0; k < a_cols; k++)
+      {
+        local_C[i][j] += local_A[i][k] * B->matrix[k][j];
+      }
+    }
+  }
+
+  // Prepare gather metadata
+  int recvcounts[size];
+  int recvdispls[size];
+  offset = 0;
+  for (int i = 0; i < size; i++)
+  {
+    int count = ((i < remainder) ? rows_per_proc + 1 : rows_per_proc) * b_cols;
+    recvcounts[i] = count;
+    recvdispls[i] = offset;
+    offset += count;
+  }
+
+  // Gather results into final matrix C
+  MPI_Gatherv(&(local_C[0][0]), local_rows * b_cols, MPI_DOUBLE,
+              &(C->matrix[0][0]), recvcounts, recvdispls, MPI_DOUBLE,
+              0, MPI_COMM_WORLD);
+
+  // Set dimensions on root
+  if (rank == 0)
+  {
+    C->rows = a_rows;
+    C->cols = b_cols;
+  }
+}
+
+/*
+Name: ref()
+Parameters: Matrix *m
+Return: void
+Description: Computes the Row Echelon Form (REF) of matrix m using OpenMPI.
+*/
+void ref(Matrix *m)
+{
+  if (!isValid(m))
+    error("Invalid matrix");
 
   int rank, size;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  int rows_per_proc = A->rows / size;
-  int remaining_rows = A->rows % size;
-  int start = rank * rows_per_proc + (rank < remaining_rows ? rank : remaining_rows);
-  int end = start + rows_per_proc + (rank < remaining_rows ? 1 : 0);
+  int rows = m->rows;
+  int cols = m->cols;
 
-  for (int i = start; i < end; i++)
+  int rows_per_proc = rows / size;
+  int remainder = rows % size;
+  int local_rows = (rank < remainder) ? rows_per_proc + 1 : rows_per_proc;
+  printf("Rank %d preparing to allocate %d rows × %d cols = %.2f MB\n", rank, local_rows, cols, (local_rows * cols * sizeof(double)) / (1024.0 * 1024.0));
+
+  int start_row = (rank < remainder)
+                      ? rank * (rows_per_proc + 1)
+                      : rank * rows_per_proc + remainder;
+
+  double local_matrix[local_rows][cols];
+  printf("Rank %d received %d rows, computing...\n", rank, local_rows);
+
+  // Scatter rows of m into local_matrix
+  int sendcounts[size], displs[size];
+  int offset = 0;
+  for (int i = 0; i < size; i++)
   {
-    for (int j = 0; j < B->cols; j++)
+    int count = ((i < remainder) ? rows_per_proc + 1 : rows_per_proc) * cols;
+    sendcounts[i] = count;
+    displs[i] = offset;
+    offset += count;
+  }
+
+  MPI_Scatterv(&(m->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
+               &(local_matrix[0][0]), local_rows * cols, MPI_DOUBLE,
+               0, MPI_COMM_WORLD);
+
+  // Temporary pivot row buffer
+  double pivot_row[cols];
+
+  for (int r = 0; r < rows; r++)
+  {
+    int owner = -1, local_r = -1;
+    for (int i = 0; i < size; i++)
     {
-      result->matrix[i][j] = 0;
-      for (int k = 0; k < A->cols; k++)
+      int start = (i < remainder) ? i * (rows_per_proc + 1) : i * rows_per_proc + remainder;
+      int end = start + ((i < remainder) ? rows_per_proc + 1 : rows_per_proc);
+      if (r >= start && r < end)
       {
-        result->matrix[i][j] += A->matrix[i][k] * B->matrix[k][j];
+        owner = i;
+        local_r = r - start;
+        break;
+      }
+    }
+
+    // Broadcast pivot row
+    if (rank == owner)
+      memcpy(pivot_row, local_matrix[local_r], sizeof(double) * cols);
+
+    MPI_Bcast(pivot_row, cols, MPI_DOUBLE, owner, MPI_COMM_WORLD);
+
+    // Eliminate below pivot
+    for (int i = 0; i < local_rows; i++)
+    {
+      int global_row = start_row + i;
+      if (global_row <= r)
+        continue;
+
+      double factor = local_matrix[i][r] / pivot_row[r];
+      for (int j = r; j < cols; j++)
+      {
+        local_matrix[i][j] -= factor * pivot_row[j];
       }
     }
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, result->matrix, MAX_ROWS * MAX_COLS, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  // Gather results back to m
+  MPI_Gatherv(&(local_matrix[0][0]), local_rows * cols, MPI_DOUBLE,
+              &(m->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
+              0, MPI_COMM_WORLD);
+}
+
+/*
+Name: rref()
+Parameters: Matrix *m
+Return: void
+Description: Computes Reduced Row Echelon Form (RREF) using OpenMPI.
+*/
+void rref(Matrix *m)
+{
+  if (!isValid(m))
+    error("Invalid matrix");
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  int rows = m->rows;
+  int cols = m->cols;
+
+  int rows_per_proc = rows / size;
+  int remainder = rows % size;
+  int local_rows = (rank < remainder) ? rows_per_proc + 1 : rows_per_proc;
+
+  int start_row = (rank < remainder)
+                      ? rank * (rows_per_proc + 1)
+                      : rank * rows_per_proc + remainder;
+
+  double local_matrix[local_rows][cols];
+
+  printf("Rank %d received %d rows, computing...\n", rank, local_rows);
+
+  // Setup for scatter/gather
+  int sendcounts[size], displs[size];
+  int offset = 0;
+  for (int i = 0; i < size; i++)
+  {
+    int count = ((i < remainder) ? rows_per_proc + 1 : rows_per_proc) * cols;
+    sendcounts[i] = count;
+    displs[i] = offset;
+    offset += count;
+  }
+
+  // Scatter matrix
+  MPI_Scatterv(&(m->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
+               &(local_matrix[0][0]), local_rows * cols, MPI_DOUBLE,
+               0, MPI_COMM_WORLD);
+
+  double pivot_row[cols];
+
+  for (int r = 0; r < rows; r++)
+  {
+    int owner = -1, local_r = -1;
+    for (int i = 0; i < size; i++)
+    {
+      int s = (i < remainder) ? i * (rows_per_proc + 1) : i * rows_per_proc + remainder;
+      int e = s + ((i < remainder) ? rows_per_proc + 1 : rows_per_proc);
+      if (r >= s && r < e)
+      {
+        owner = i;
+        local_r = r - s;
+        break;
+      }
+    }
+
+    // Normalize pivot row on owner
+    if (rank == owner)
+    {
+      double pivot = local_matrix[local_r][r];
+      if (pivot != 0)
+      {
+        for (int j = r; j < cols; j++)
+          local_matrix[local_r][j] /= pivot;
+      }
+      memcpy(pivot_row, local_matrix[local_r], sizeof(double) * cols);
+    }
+
+    // Broadcast normalized pivot row
+    MPI_Bcast(pivot_row, cols, MPI_DOUBLE, owner, MPI_COMM_WORLD);
+
+    // Eliminate all other rows (above and below)
+    for (int i = 0; i < local_rows; i++)
+    {
+      int global_i = start_row + i;
+      if (global_i == r)
+        continue;
+
+      double factor = local_matrix[i][r];
+      for (int j = r; j < cols; j++)
+        local_matrix[i][j] -= factor * pivot_row[j];
+    }
+  }
+
+  // Gather result to root
+  MPI_Gatherv(&(local_matrix[0][0]), local_rows * cols, MPI_DOUBLE,
+              &(m->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
+              0, MPI_COMM_WORLD);
 }
 
 /*
@@ -520,22 +765,175 @@ void subtractMatrix(const Matrix *A, const Matrix *B, Matrix *result)
 }
 
 /*
-Name: ref()
-Parameters: Matrix *
+Name: LU()
+Parameters: Matrix *A, Matrix *L, Matrix *U
 Return: void
-Description: Puts the matrix into row echelon form
+Description: Computes LU decomposition of matrix A using OpenMPI. A = L × U
 */
-void ref(Matrix *m)
+void LU(Matrix *A, Matrix *L, Matrix *U)
 {
-
-  if (!isValid(m))
-  {
+  if (!isValid(A))
     error("Invalid matrix");
-  }
 
   int rank, size;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  int n = A->rows;
+
+  if (A->rows != A->cols)
+    error("LU decomposition requires a square matrix");
+
+  int rows_per_proc = n / size;
+  int remainder = n % size;
+  int local_rows = (rank < remainder) ? rows_per_proc + 1 : rows_per_proc;
+
+  int start_row = (rank < remainder)
+                      ? rank * (rows_per_proc + 1)
+                      : rank * rows_per_proc + remainder;
+
+  double local_matrix[local_rows][n];
+  double pivot_row[n];
+
+  // Setup scatter metadata
+  int sendcounts[size], displs[size];
+  int offset = 0;
+  for (int i = 0; i < size; i++)
+  {
+    int count = ((i < remainder) ? rows_per_proc + 1 : rows_per_proc) * n;
+    sendcounts[i] = count;
+    displs[i] = offset;
+    offset += count;
+  }
+
+  // Scatter A into local_matrix
+  MPI_Scatterv(&(A->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
+               &(local_matrix[0][0]), local_rows * n, MPI_DOUBLE,
+               0, MPI_COMM_WORLD);
+
+  if (rank == 0)
+  {
+    initSize(L, n, n);
+    initSize(U, n, n);
+  }
+
+  for (int k = 0; k < n; k++)
+  {
+    // Determine pivot owner and local row index
+    int owner = -1, local_k = -1;
+    for (int i = 0; i < size; i++)
+    {
+      int s = (i < remainder) ? i * (rows_per_proc + 1) : i * rows_per_proc + remainder;
+      int e = s + ((i < remainder) ? rows_per_proc + 1 : rows_per_proc);
+      if (k >= s && k < e)
+      {
+        owner = i;
+        local_k = k - s;
+        break;
+      }
+    }
+
+    if (rank == owner)
+      memcpy(pivot_row, local_matrix[local_k], sizeof(double) * n);
+
+    MPI_Bcast(pivot_row, n, MPI_DOUBLE, owner, MPI_COMM_WORLD);
+
+    for (int i = 0; i < local_rows; i++)
+    {
+      int global_i = start_row + i;
+      if (global_i <= k)
+        continue;
+
+      double factor = local_matrix[i][k] / pivot_row[k];
+      local_matrix[i][k] = factor;
+
+      for (int j = k + 1; j < n; j++)
+        local_matrix[i][j] -= factor * pivot_row[j];
+    }
+  }
+
+  // Gather modified matrix back to A
+  MPI_Gatherv(&(local_matrix[0][0]), local_rows * n, MPI_DOUBLE,
+              &(A->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
+              0, MPI_COMM_WORLD);
+
+  // Extract L and U on rank 0
+  if (rank == 0)
+  {
+    for (int i = 0; i < n; i++)
+    {
+      for (int j = 0; j < n; j++)
+      {
+        if (i > j)
+        {
+          L->matrix[i][j] = A->matrix[i][j];
+          U->matrix[i][j] = 0;
+        }
+        else if (i == j)
+        {
+          L->matrix[i][j] = 1;
+          U->matrix[i][j] = A->matrix[i][j];
+        }
+        else
+        {
+          L->matrix[i][j] = 0;
+          U->matrix[i][j] = A->matrix[i][j];
+        }
+      }
+    }
+  }
+}
+
+/*
+
+
+
+
+
+Sequentual functions below
+
+
+
+
+
+*/
+
+/*
+Name: Seq_multiplyMatrix()
+Parameters: const Matrix *A, const Matrix *B, Matrix *C
+Return: void
+Description: Multiplies matrix A and matrix B sequentially and stores result in matrix C.
+*/
+void Seq_multiplyMatrix(const Matrix *A, const Matrix *B, Matrix *C)
+{
+  if (!isValid(A) || !isValid(B))
+    error("Invalid input matrices");
+  if (A->cols != B->rows)
+    error("Incompatible dimensions for multiplication");
+
+  for (int i = 0; i < A->rows; i++)
+  {
+    for (int j = 0; j < B->cols; j++)
+    {
+      C->matrix[i][j] = 0;
+      for (int k = 0; k < A->cols; k++)
+      {
+        C->matrix[i][j] += A->matrix[i][k] * B->matrix[k][j];
+      }
+    }
+  }
+}
+
+/*
+Name: Seq_ref()
+Parameters: Matrix *m
+Return: void
+Description: Puts the matrix into row echelon form sequentially.
+*/
+void Seq_ref(Matrix *m)
+{
+  if (!isValid(m))
+    error("Invalid matrix");
 
   int lead = 0;
   int rowCount = m->rows;
@@ -546,7 +944,6 @@ void ref(Matrix *m)
     if (lead >= colCount)
       return;
 
-    // find pivot row for column lead
     int i = r;
     while (m->matrix[i][lead] == 0)
     {
@@ -560,48 +957,28 @@ void ref(Matrix *m)
       }
     }
 
-    // swap current row with pivot row
     if (i != r)
     {
-      rowSwap(m, r, i);
+      for (int j = 0; j < colCount; j++)
+      {
+        double temp = m->matrix[r][j];
+        m->matrix[r][j] = m->matrix[i][j];
+        m->matrix[i][j] = temp;
+      }
     }
 
-    // scale pivot row to make pivot 1
-    double divisor = m->matrix[r][lead];
-    for (int j = 0; j < colCount; j++)
+    double lv = m->matrix[r][lead];
+    if (lv != 0)
     {
-      m->matrix[r][j] /= divisor;
+      for (int j = 0; j < colCount; j++)
+        m->matrix[r][j] /= lv;
     }
 
-    // OpenMPI starts here
-    MPI_Bcast(m->matrix[r], colCount, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    int rows_per_proc = (rowCount - (r + 1)) / size;
-    int remaining_rows = (rowCount - (r + 1)) % size;
-
-    // eliminate all entries below the pivot
     for (int i = r + 1; i < rowCount; i++)
     {
-      if (m->matrix[i][lead] != 0)
-      {
-        double factor = m->matrix[i][lead];
-        for (int j = 0; j < colCount; j++)
-        {
-          m->matrix[i][j] -= factor * m->matrix[r][j];
-        }
-      }
-    }
-
-    // gather everything back
-    for (int proc = 0; proc < size; proc++)
-    {
-      int proc_start = r + 1 + proc * rows_per_proc + (proc < remaining_rows ? proc : remaining_rows);
-      int proc_end = proc_start + rows_per_proc + (proc < remaining_rows ? 1 : 0);
-
-      for (int row = proc_start; row < proc_end; row++)
-      {
-        MPI_Bcast(m->matrix[row], colCount, MPI_DOUBLE, proc, MPI_COMM_WORLD);
-      }
+      double lv2 = m->matrix[i][lead];
+      for (int j = 0; j < colCount; j++)
+        m->matrix[i][j] -= lv2 * m->matrix[r][j];
     }
 
     lead++;
@@ -609,135 +986,85 @@ void ref(Matrix *m)
 }
 
 /*
-Name: rref();
-Parameters: Matrix *
+Name: Seq_rref()
+Parameters: Matrix *m
 Return: void
-Description: Puts the matrix into reduced row echelon form.
-              This function also uses ref()
+Description: Converts matrix to reduced row echelon form without MPI.
 */
-void rref(Matrix *m)
+void Seq_rref(Matrix *m)
 {
   if (!isValid(m))
-  {
     error("Invalid matrix");
-  }
 
-  int rank, size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-  ref(m);
+  Seq_ref(m);
 
   int rowCount = m->rows;
   int colCount = m->cols;
 
   for (int r = rowCount - 1; r >= 0; r--)
   {
-    // skip if row is all zeroes
-    if (m->matrix[r][r] == 0)
-      continue;
-
-    // Broadcast pivot row
-    MPI_Bcast(m->matrix[r], colCount, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    int rows_per_proc = r / size;
-    int remaining_rows = r % size;
-    int start = rank * rows_per_proc + (rank < remaining_rows ? rank : remaining_rows);
-    int end = start + rows_per_proc + (rank < remaining_rows ? 1 : 0);
-
-    for (int i = start; i < end; i++)
+    int leadCol = -1;
+    for (int j = 0; j < colCount; j++)
     {
-      if (m->matrix[i][r] != 0)
+      if (fabs(m->matrix[r][j] - 1.0) < 1e-6)
       {
-        double factor = m->matrix[i][r];
-        for (int j = 0; j < colCount; j++)
-        {
-          m->matrix[i][j] -= factor * m->matrix[r][j];
-        }
+        leadCol = j;
+        break;
       }
     }
 
-    // get other rows back
-    // Broadcast updated rows back
-    for (int proc = 0; proc < size; proc++)
-    {
-      int proc_start = proc * rows_per_proc + (proc < remaining_rows ? proc : remaining_rows);
-      int proc_end = proc_start + rows_per_proc + (proc < remaining_rows ? 1 : 0);
+    if (leadCol == -1)
+      continue;
 
-      for (int row = proc_start; row < proc_end; row++)
-      {
-        MPI_Bcast(m->matrix[row], colCount, MPI_DOUBLE, proc, MPI_COMM_WORLD);
-      }
+    for (int i = 0; i < r; i++)
+    {
+      double factor = m->matrix[i][leadCol];
+      for (int j = 0; j < colCount; j++)
+        m->matrix[i][j] -= factor * m->matrix[r][j];
     }
   }
 }
 
 /*
-Name: LU
+Name: Seq_LU()
 Parameters: const Matrix *A, Matrix *L, Matrix *U
 Return: void
-Description: Performs LU decomposition on matrix A
-          Fills L with the lower and U with the upper.
-          A = L * U
-
+Description: Performs LU decomposition sequentially.
 */
-void LU(const Matrix *A, Matrix *L, Matrix *U)
+void Seq_LU(const Matrix *A, Matrix *L, Matrix *U)
 {
-
   if (!isValid(A))
-  {
-    error("Cannot perform LU decomposition on invalid matrix.");
-  }
-
-  int rank, size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+    error("Invalid matrix");
 
   int n = A->rows;
 
   for (int i = 0; i < n; ++i)
+  {
     for (int j = 0; j < n; ++j)
-      L->matrix[i][j] = U->matrix[i][j] = 0;
+    {
+      L->matrix[i][j] = 0;
+      U->matrix[i][j] = 0;
+    }
+  }
 
   for (int k = 0; k < n; ++k)
   {
-    if (rank == 0)
+    for (int j = k; j < n; ++j)
     {
-      for (int j = k; j < n; ++j)
-      {
-        double sum = 0;
-        for (int s = 0; s < k; ++s)
-          sum += L->matrix[k][s] * U->matrix[s][j];
-        U->matrix[k][j] = A->matrix[k][j] - sum;
-      }
-
-      for (int i = k + 1; i < n; ++i)
-      {
-        double sum = 0;
-        for (int s = 0; s < k; ++s)
-          sum += L->matrix[i][s] * U->matrix[s][k];
-        L->matrix[i][k] = (A->matrix[i][k] - sum) / U->matrix[k][k];
-      }
-
-      L->matrix[k][k] = 1.0;
-
-      for (int p = 1; p < size; ++p)
-      {
-        MPI_Send(U->matrix[k] + k, n - k, MPI_DOUBLE, p, 0, MPI_COMM_WORLD);
-        double column[n];
-        for (int i = k + 1; i < n; ++i)
-          column[i] = L->matrix[i][k];
-        MPI_Send(column + k + 1, n - k - 1, MPI_DOUBLE, p, 1, MPI_COMM_WORLD);
-      }
+      double sum = 0;
+      for (int s = 0; s < k; ++s)
+        sum += L->matrix[k][s] * U->matrix[s][j];
+      U->matrix[k][j] = A->matrix[k][j] - sum;
     }
-    else
+
+    L->matrix[k][k] = 1.0;
+
+    for (int i = k + 1; i < n; ++i)
     {
-      MPI_Recv(U->matrix[k] + k, n - k, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      double column[n];
-      MPI_Recv(column + k + 1, n - k - 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      for (int i = k + 1; i < n; ++i)
-        L->matrix[i][k] = column[i];
-      L->matrix[k][k] = 1.0;
+      double sum = 0;
+      for (int s = 0; s < k; ++s)
+        sum += L->matrix[i][s] * U->matrix[s][k];
+      L->matrix[i][k] = (A->matrix[i][k] - sum) / U->matrix[k][k];
     }
-    MPI_Barrier(MPI_COMM_WORLD);
   }
 }

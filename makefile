@@ -1,29 +1,39 @@
-# Variables
-PROG = prog
-CC = mpicc 
+CC = mpicc
 CFLAGS = -g -Wall -std=c11
-OBJS = main.o MatrixC.o
+OBJS = MatrixC.o
 
-# Default target
-all: $(PROG)
+all: multiplyTest refTest rrefTest luTest
 
-# Link objects to create executable
-$(PROG): $(OBJS)
-	$(CC) $(CFLAGS) -o $(PROG) $(OBJS) -lm
+multiplyTest: multiplyTest.o $(OBJS)
+	$(CC) $(CFLAGS) -o multiplyTest multiplyTest.o $(OBJS) -lm
 
-# Compile main.c to main.o
-main.o: main.c MatrixC.h
-	$(CC) $(CFLAGS) -c main.c
+refTest: refTest.o $(OBJS)
+	$(CC) $(CFLAGS) -o refTest refTest.o $(OBJS) -lm
 
-# Compile MatrixC.c to MatrixC.o
+rrefTest: rrefTest.o $(OBJS)
+	$(CC) $(CFLAGS) -o rrefTest rrefTest.o $(OBJS) -lm
+
+luTest: luTest.o $(OBJS)
+	$(CC) $(CFLAGS) -o luTest luTest.o $(OBJS) -lm
+
+multiplyTest.o: multiplyTest.c MatrixC.h
+	$(CC) $(CFLAGS) -c multiplyTest.c
+
+refTest.o: refTest.c MatrixC.h
+	$(CC) $(CFLAGS) -c refTest.c
+
+rrefTest.o: rrefTest.c MatrixC.h
+	$(CC) $(CFLAGS) -c rrefTest.c
+
+luTest.o: luTest.c MatrixC.h
+	$(CC) $(CFLAGS) -c luTest.c
+
 MatrixC.o: MatrixC.c MatrixC.h
 	$(CC) $(CFLAGS) -c MatrixC.c
 
-# Clean object files and executable
 clean:
-	rm -f $(OBJS) $(PROG)
+	rm -f *.o multiplyTest refTest rrefTest luTest
 
-# Rebuild the program
 rebuild:
-	make clean 
+	make clean
 	make

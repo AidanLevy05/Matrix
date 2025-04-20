@@ -55,6 +55,12 @@ void addMatrix(const Matrix *, const Matrix *, Matrix *);
 void subtractMatrix(const Matrix *, const Matrix *, Matrix *);
 void ref(Matrix *);
 void rref(Matrix *);
-void LU(const Matrix *, Matrix *, Matrix *);
+void LU(Matrix *, Matrix *, Matrix *);
+
+/* Non-OpenMPI Solving */
+void Seq_multiplyMatrix(const Matrix *, const Matrix *, Matrix *);
+void Seq_ref(Matrix *);
+void Seq_rref(Matrix *);
+void Seq_LU(const Matrix *, Matrix *, Matrix *);
 
 #endif /* MATRIXC_H */
