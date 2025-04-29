@@ -1,8 +1,8 @@
 #ifndef MATRIXC_H
 #define MATRIXC_H
 
-#define MAX_ROWS 4000
-#define MAX_COLS 4000
+#define MAX_ROWS 2100
+#define MAX_COLS 2100
 
 #include <stdio.h>
 #include <stdlib.h>

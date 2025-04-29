@@ -4,13 +4,10 @@
 #include <time.h>
 #include "MatrixC.h"
 
-void divisor(const char *msg)
-{
-  printf("\n---- %s ----\n\n", msg);
-}
+void divisor(const char *msg);
 
-// Global matrices
-Matrix A_original, L_parallel, U_parallel, L_seq, U_seq;
+Matrix A_original, L_parallel, U_parallel;
+Matrix L_seq, U_seq;
 
 int main(int argc, char **argv)
 {
@@ -22,22 +19,34 @@ int main(int argc, char **argv)
 
   srand(time(NULL) + rank);
 
-  int N = 100;
-  initSize(&A_original, N, N);
-  initSize(&L_parallel, N, N);
-  initSize(&U_parallel, N, N);
-  initSize(&L_seq, N, N);
-  initSize(&U_seq, N, N);
+  int N = 10, use_sequential = 0;
 
   if (rank == 0)
   {
+    printf("Enter matrix size (N for NxN): ");
+    scanf("%d", &N);
+
+    printf("Run sequential also? (1 = yes, 0 = no): ");
+    scanf("%d", &use_sequential);
+  }
+
+  MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&use_sequential, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  initSize(&A_original, N, N);
+  initSize(&L_parallel, N, N);
+  initSize(&U_parallel, N, N);
+
+  if (rank == 0)
+  {
+    initSize(&L_seq, N, N);
+    initSize(&U_seq, N, N);
     setRandom(&A_original, 100);
   }
 
-  // Broadcast A_original to all
   MPI_Bcast(&(A_original.matrix[0][0]), N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-  // ---------- Parallel LU ----------
+  // ------------------ Parallel LU ------------------
   if (rank == 0)
     printf("Running parallel LU()...\n");
 
@@ -47,27 +56,31 @@ int main(int argc, char **argv)
 
   if (rank == 0)
   {
-    printf("LU() done in %.3f seconds\n", end - start);
-    divisor("LU");
-  }
+    printf("Parallel LU() done in %.3f seconds\n", end - start);
+    divisor("Parallel LU");
 
-  // ---------- Sequential LU ----------
-  if (rank == 0)
-  {
-    Matrix A_copy;
-    initSize(&A_copy, N, N);
-    copyMatrix(&A_copy, &A_original);
+    if (use_sequential == 1)
+    {
+      Matrix A_copy;
+      initSize(&A_copy, N, N);
+      copyMatrix(&A_copy, &A_original);
 
-    printf("Running sequential Seq_LU()...\n");
+      printf("Running sequential Seq_LU()...\n");
 
-    start = MPI_Wtime();
-    Seq_LU(&A_copy, &L_seq, &U_seq);
-    end = MPI_Wtime();
+      start = MPI_Wtime();
+      Seq_LU(&A_copy, &L_seq, &U_seq);
+      end = MPI_Wtime();
 
-    printf("Seq_LU() done in %.3f seconds\n", end - start);
-    divisor("Seq_LU");
+      printf("Sequential Seq_LU() done in %.3f seconds\n", end - start);
+      divisor("Sequential LU");
+    }
   }
 
   MPI_Finalize();
   return 0;
+}
+
+void divisor(const char *msg)
+{
+  printf("\n---- %s ----\n\n", msg);
 }

@@ -765,122 +765,43 @@ void subtractMatrix(const Matrix *A, const Matrix *B, Matrix *result)
 }
 
 /*
-Name: LU()
-Parameters: Matrix *A, Matrix *L, Matrix *U
+Name: LU
+Parameters: Matrix* A, Matrix* L, Matrix* U
 Return: void
-Description: Computes LU decomposition of matrix A using OpenMPI. A = L × U
+Description: Performs LU decomposition
 */
 void LU(Matrix *A, Matrix *L, Matrix *U)
 {
-  if (!isValid(A))
-    error("Invalid matrix");
-
-  int rank, size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-
   int n = A->rows;
 
-  if (A->rows != A->cols)
-    error("LU decomposition requires a square matrix");
-
-  int rows_per_proc = n / size;
-  int remainder = n % size;
-  int local_rows = (rank < remainder) ? rows_per_proc + 1 : rows_per_proc;
-
-  int start_row = (rank < remainder)
-                      ? rank * (rows_per_proc + 1)
-                      : rank * rows_per_proc + remainder;
-
-  double local_matrix[local_rows][n];
-  double pivot_row[n];
-
-  // Setup scatter metadata
-  int sendcounts[size], displs[size];
-  int offset = 0;
-  for (int i = 0; i < size; i++)
+  // Initialize L and U matrices
+  for (int i = 0; i < n; ++i)
   {
-    int count = ((i < remainder) ? rows_per_proc + 1 : rows_per_proc) * n;
-    sendcounts[i] = count;
-    displs[i] = offset;
-    offset += count;
-  }
-
-  // Scatter A into local_matrix
-  MPI_Scatterv(&(A->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
-               &(local_matrix[0][0]), local_rows * n, MPI_DOUBLE,
-               0, MPI_COMM_WORLD);
-
-  if (rank == 0)
-  {
-    initSize(L, n, n);
-    initSize(U, n, n);
-  }
-
-  for (int k = 0; k < n; k++)
-  {
-    // Determine pivot owner and local row index
-    int owner = -1, local_k = -1;
-    for (int i = 0; i < size; i++)
+    for (int j = 0; j < n; ++j)
     {
-      int s = (i < remainder) ? i * (rows_per_proc + 1) : i * rows_per_proc + remainder;
-      int e = s + ((i < remainder) ? rows_per_proc + 1 : rows_per_proc);
-      if (k >= s && k < e)
+      L->matrix[i][j] = 0.0;
+      U->matrix[i][j] = A->matrix[i][j];
+    }
+  }
+
+  for (int k = 0; k < n; ++k)
+  {
+    for (int i = k + 1; i < n; ++i)
+    {
+      double multiplier = U->matrix[i][k] / U->matrix[k][k];
+      L->matrix[i][k] = multiplier;
+
+      for (int j = k; j < n; ++j)
       {
-        owner = i;
-        local_k = k - s;
-        break;
+        U->matrix[i][j] -= multiplier * U->matrix[k][j];
       }
     }
-
-    if (rank == owner)
-      memcpy(pivot_row, local_matrix[local_k], sizeof(double) * n);
-
-    MPI_Bcast(pivot_row, n, MPI_DOUBLE, owner, MPI_COMM_WORLD);
-
-    for (int i = 0; i < local_rows; i++)
-    {
-      int global_i = start_row + i;
-      if (global_i <= k)
-        continue;
-
-      double factor = local_matrix[i][k] / pivot_row[k];
-      local_matrix[i][k] = factor;
-
-      for (int j = k + 1; j < n; j++)
-        local_matrix[i][j] -= factor * pivot_row[j];
-    }
   }
 
-  // Gather modified matrix back to A
-  MPI_Gatherv(&(local_matrix[0][0]), local_rows * n, MPI_DOUBLE,
-              &(A->matrix[0][0]), sendcounts, displs, MPI_DOUBLE,
-              0, MPI_COMM_WORLD);
-
-  // Extract L and U on rank 0
-  if (rank == 0)
+  // Set the diagonal of L to 1
+  for (int i = 0; i < n; ++i)
   {
-    for (int i = 0; i < n; i++)
-    {
-      for (int j = 0; j < n; j++)
-      {
-        if (i > j)
-        {
-          L->matrix[i][j] = A->matrix[i][j];
-          U->matrix[i][j] = 0;
-        }
-        else if (i == j)
-        {
-          L->matrix[i][j] = 1;
-          U->matrix[i][j] = A->matrix[i][j];
-        }
-        else
-        {
-          L->matrix[i][j] = 0;
-          U->matrix[i][j] = A->matrix[i][j];
-        }
-      }
-    }
+    L->matrix[i][i] = 1.0;
   }
 }
 

@@ -22,7 +22,21 @@ int main(int argc, char **argv)
 
   srand(time(NULL) + rank);
 
-  int N = 1000;
+  int N = 10, use_parallel = 1;
+
+  if (rank == 0)
+  {
+    printf("Enter matrix size: ");
+    scanf("%d", &N);
+
+    printf("Run sequential too? (1 = yes, 0 = no): ");
+    scanf("%d", &use_parallel);
+  }
+
+  // Broadcast settings
+  MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&use_parallel, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
   initSize(&A_parallel, N, N);
   initSize(&A_seq, N, N);
 
@@ -51,7 +65,7 @@ int main(int argc, char **argv)
   }
 
   // ----------- Sequential Seq_ref() -----------
-  if (rank == 0)
+  if (rank == 0 && use_parallel == 1)
   {
     printf("Running sequential Seq_ref()...\n");
 
