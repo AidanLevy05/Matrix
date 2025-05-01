@@ -50,7 +50,32 @@ To aid in understanding the parallel implementations discussed in this study, th
     \label{fig:mpi_diagram}
 \end{figure}
 
-An MPI process is a single instance of a running program in an MPI application. Each process has a unique rank, which is an integer associated with that process, separating it from the other processes. Rank 0 is typically the root process, the one that initializes the program. MPI\_Bcast is a broadcast function that is used to send data from one process, usually the root, to all other processes in a communicator. This ensures that all processes have the same updated data before continuing. Additionally, MPI\_Barrier is a synchronization function that blocks all processes until every process in the communicator has reached the barrier. This makes sure that all previous operations are complete across all processes before proceeding. While this tool is useful, large overhead can occur because it pauses all processes until every one is complete. In large matrices, this build up can accumulate over time. MPI\_Allreduce is a collective communication operation that sums values from all running processed using a specified operation, and distributes the result back to all processes. 
+An MPI process is a single instance of a running program in an MPI application. Each process has a unique rank, which is an integer associated with that process, separating it from the other processes. Rank 0 is typically the root process, the one that initializes the program. MPI\_Bcast is a broadcast function that is used to send data from one process, usually the root, to all other processes in a communicator. This ensures that all processes have the same updated data before continuing. Without the usage of MPI\_Bcast, the data would now be shared across all nodes. The following diagram displays how MPI\_Bcast distributes memory:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{MPI_Bcast.png}
+    \caption{Data Flow using MPI\_Bcast}
+    \label{fig:mpi_bcast}
+\end{figure}
+
+Additionally, MPI\_Barrier is a synchronization function that blocks all processes until every process in the communicator has reached the barrier. This makes sure that all previous operations are complete across all processes before proceeding. While this tool is necessary, large overhead can occur because it pauses all processes until every one is complete. In large matrices, this build up can accumulate over time. The following diagram demonstrates how MPI\_Barrier waits for all processes to complete:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{MPI_Barrier.png}
+    \caption{Data Flow using MPI\_Barrier}
+    \label{fig:mpi_barrier}
+\end{figure}
+
+MPI\_Allreduce is a collective communication operation that sums values from all running processed using a specified operation, and distributes the result back to all processes. This command is used to pull all results together and re-send data back out to all processes. Here is a diagram displaying how MPI\_Allreduce works: 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{MPI_Allreduce.png}
+    \caption{Data Flow using MPI\_Allreduce}
+    \label{fig:mpi_allreduce}
+\end{figure}
 
 \section{Mathematics and Algorithms}
 The implementation of parallelized linear algebra routines requires not only a theoretical understanding of the algorithms but also practical insight into how these operations work under distributed computation. This section outlines the core mathematical algorithms used in the project: matrix multiplication, REF, RREF, and LU decomposition, as well as comparing the differences between their sequential and OpenMPI forms.
