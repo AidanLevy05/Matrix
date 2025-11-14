@@ -16,7 +16,6 @@ echo "3. rrefTest"
 echo "4. luTest"
 read CHOICE
 
-# Pick executable
 case $CHOICE in
   1) EXEC="./multiplyTest" ;;
   2) EXEC="./refTest" ;;
@@ -25,6 +24,11 @@ case $CHOICE in
   *) echo "Invalid choice"; exit 1 ;;
 esac
 
+if [ ! -x "$EXEC" ]; then
+  echo "Error: $EXEC not found or not executable. Did you run 'make'?"
+  exit 1
+fi
+
 echo
 echo "Running $EXEC with:"
 echo "- Matrix size: $N"
@@ -32,6 +36,5 @@ echo "- Sequential: $USE_SEQ"
 echo "- Processes: $PROCS"
 echo
 
-# Feed stdin input to the executable using a here string
-mpirun --oversubscribe -np $PROCS $EXEC <<< "$N
+mpirun --oversubscribe -np "$PROCS" "$EXEC" <<< "$N
 $USE_SEQ"

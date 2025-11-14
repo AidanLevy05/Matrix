@@ -1,19 +1,15 @@
+#include "../src/MatrixC.h"
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>
 #include <time.h>
-#include "MatrixC.h"
 
-void divisor(const char *msg)
-{
-  printf("\n---- %s ----\n\n", msg);
-}
+void divisor(const char *msg) { printf("\n---- %s ----\n\n", msg); }
 
 // Global matrices
 Matrix A_parallel, A_seq;
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
 
   int rank, size;
@@ -24,8 +20,7 @@ int main(int argc, char **argv)
 
   int N = 10, use_parallel = 1;
 
-  if (rank == 0)
-  {
+  if (rank == 0) {
     printf("Enter matrix size: ");
     scanf("%d", &N);
 
@@ -41,8 +36,7 @@ int main(int argc, char **argv)
   initSize(&A_seq, N, N);
 
   // Rank 0 sets data
-  if (rank == 0)
-  {
+  if (rank == 0) {
     setRandom(&A_parallel, 100);
     copyMatrix(&A_seq, &A_parallel);
   }
@@ -58,15 +52,13 @@ int main(int argc, char **argv)
   rref(&A_parallel);
   double end = MPI_Wtime();
 
-  if (rank == 0)
-  {
+  if (rank == 0) {
     printf("rref() done in %.3f seconds\n", end - start);
     divisor("rref");
   }
 
   // ----------- Sequential Seq_rref() -----------
-  if (rank == 0 && use_parallel == 1)
-  {
+  if (rank == 0 && use_parallel == 1) {
     printf("Running sequential Seq_rref()...\n");
 
     start = MPI_Wtime();

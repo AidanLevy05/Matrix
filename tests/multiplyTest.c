@@ -1,18 +1,14 @@
+#include "../src/MatrixC.h"
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>
 #include <time.h>
-#include "MatrixC.h"
 
-void divisor(const char *msg)
-{
-  printf("\n---- %s ----\n\n", msg);
-}
+void divisor(const char *msg) { printf("\n---- %s ----\n\n", msg); }
 
 Matrix A, B, C_parallel, C_seq;
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
 
   int rank, size;
@@ -23,8 +19,7 @@ int main(int argc, char **argv)
 
   int N = 100, use_parallel = 0;
 
-  if (rank == 0)
-  {
+  if (rank == 0) {
     printf("Enter matrix size: ");
     scanf("%d", &N);
 
@@ -42,8 +37,7 @@ int main(int argc, char **argv)
   initSize(&C_seq, N, N);
 
   // Rank 0 generates the random data
-  if (rank == 0)
-  {
+  if (rank == 0) {
     setRandom(&A, 100);
     setRandom(&B, 100);
   }
@@ -60,15 +54,13 @@ int main(int argc, char **argv)
   multiplyMatrix(&A, &B, &C_parallel);
   double end = MPI_Wtime();
 
-  if (rank == 0)
-  {
+  if (rank == 0) {
     printf("multiplyMatrix() done in %.3f seconds\n", end - start);
     divisor("multiplyMatrix");
   }
 
   // ------------------ Sequential ------------------
-  if (rank == 0 && use_parallel == 1)
-  {
+  if (rank == 0 && use_parallel == 1) {
     printf("Running sequential Seq_multiplyMatrix()...\n");
 
     start = MPI_Wtime();

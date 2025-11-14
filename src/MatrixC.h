@@ -4,16 +4,15 @@
 #define MAX_ROWS 2100
 #define MAX_COLS 2100
 
+#include <math.h>
+#include <mpi.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <stdbool.h>
 #include <time.h>
-#include <mpi.h>
 
-typedef struct
-{
+typedef struct {
   int rows;
   int cols;
   double matrix[MAX_ROWS][MAX_COLS];

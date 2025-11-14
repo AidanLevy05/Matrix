@@ -1,16 +1,15 @@
+#include "../src/MatrixC.h"
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>
 #include <time.h>
-#include "MatrixC.h"
 
 void divisor(const char *msg);
 
 Matrix A_original, L_parallel, U_parallel;
 Matrix L_seq, U_seq;
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
 
   int rank, size;
@@ -21,8 +20,7 @@ int main(int argc, char **argv)
 
   int N = 10, use_sequential = 0;
 
-  if (rank == 0)
-  {
+  if (rank == 0) {
     printf("Enter matrix size (N for NxN): ");
     scanf("%d", &N);
 
@@ -37,8 +35,7 @@ int main(int argc, char **argv)
   initSize(&L_parallel, N, N);
   initSize(&U_parallel, N, N);
 
-  if (rank == 0)
-  {
+  if (rank == 0) {
     initSize(&L_seq, N, N);
     initSize(&U_seq, N, N);
     setRandom(&A_original, 100);
@@ -54,13 +51,11 @@ int main(int argc, char **argv)
   LU(&A_original, &L_parallel, &U_parallel);
   double end = MPI_Wtime();
 
-  if (rank == 0)
-  {
+  if (rank == 0) {
     printf("Parallel LU() done in %.3f seconds\n", end - start);
     divisor("Parallel LU");
 
-    if (use_sequential == 1)
-    {
+    if (use_sequential == 1) {
       Matrix A_copy;
       initSize(&A_copy, N, N);
       copyMatrix(&A_copy, &A_original);
@@ -80,7 +75,4 @@ int main(int argc, char **argv)
   return 0;
 }
 
-void divisor(const char *msg)
-{
-  printf("\n---- %s ----\n\n", msg);
-}
+void divisor(const char *msg) { printf("\n---- %s ----\n\n", msg); }

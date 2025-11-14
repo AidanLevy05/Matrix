@@ -1,39 +1,28 @@
-CC = mpicc
-CFLAGS = -g -Wall -std=c11
-OBJS = MatrixC.o
+CC      = mpicc
+CFLAGS  = -Wall -Wextra -O2
 
-all: multiplyTest refTest rrefTest luTest
+SRC_DIR   = src
+TEST_DIR  = tests
 
-multiplyTest: multiplyTest.o $(OBJS)
-	$(CC) $(CFLAGS) -o multiplyTest multiplyTest.o $(OBJS) -lm
+MATRIX_SRC = $(SRC_DIR)/MatrixC.c
+MATRIX_HDR = $(SRC_DIR)/MatrixC.h
 
-refTest: refTest.o $(OBJS)
-	$(CC) $(CFLAGS) -o refTest refTest.o $(OBJS) -lm
+TESTS = luTest multiplyTest refTest rrefTest
 
-rrefTest: rrefTest.o $(OBJS)
-	$(CC) $(CFLAGS) -o rrefTest rrefTest.o $(OBJS) -lm
+all: $(TESTS)
 
-luTest: luTest.o $(OBJS)
-	$(CC) $(CFLAGS) -o luTest luTest.o $(OBJS) -lm
+luTest: $(MATRIX_SRC) $(MATRIX_HDR) $(TEST_DIR)/luTest.c
+	$(CC) $(CFLAGS) -o luTest $(MATRIX_SRC) $(TEST_DIR)/luTest.c
 
-multiplyTest.o: multiplyTest.c MatrixC.h
-	$(CC) $(CFLAGS) -c multiplyTest.c
+multiplyTest: $(MATRIX_SRC) $(MATRIX_HDR) $(TEST_DIR)/multiplyTest.c
+	$(CC) $(CFLAGS) -o multiplyTest $(MATRIX_SRC) $(TEST_DIR)/multiplyTest.c
 
-refTest.o: refTest.c MatrixC.h
-	$(CC) $(CFLAGS) -c refTest.c
+refTest: $(MATRIX_SRC) $(MATRIX_HDR) $(TEST_DIR)/refTest.c
+	$(CC) $(CFLAGS) -o refTest $(MATRIX_SRC) $(TEST_DIR)/refTest.c
 
-rrefTest.o: rrefTest.c MatrixC.h
-	$(CC) $(CFLAGS) -c rrefTest.c
+rrefTest: $(MATRIX_SRC) $(MATRIX_HDR) $(TEST_DIR)/rrefTest.c
+	$(CC) $(CFLAGS) -o rrefTest $(MATRIX_SRC) $(TEST_DIR)/rrefTest.c
 
-luTest.o: luTest.c MatrixC.h
-	$(CC) $(CFLAGS) -c luTest.c
-
-MatrixC.o: MatrixC.c MatrixC.h
-	$(CC) $(CFLAGS) -c MatrixC.c
-
+.PHONY: clean
 clean:
-	rm -f *.o multiplyTest refTest rrefTest luTest
-
-rebuild:
-	make clean
-	make
+	rm -f $(TESTS)
