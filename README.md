@@ -133,7 +133,24 @@ Each test program in `tests/` focuses on one operation:
 - `rrefTest.c`  
 - `multiplyTest.c`
 
-These programs demonstrate API usage and serve as correctness checks against known matrices.
+These programs validate the core matrix operations (LU, REF, RREF, and multiplication).
+
+## How to Run Tests
+
+All testing is handled through the unified script:
+
+```bash
+./runTest.sh
+```
+
+This script:
+- prompts for matrix size
+- selects sequential or parallel mode
+- asks how many MPI processes to use 
+- allows choosing which operation to test 
+- launches the selected program with `mpirun`
+
+This is the only recommended way to run and test in this project.
 
 ---
 
