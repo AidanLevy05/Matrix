@@ -48,7 +48,24 @@ Run:
 make
 ```
 
-### **Run Specific Test Executables**
+### How to Run Tests
+
+All testing is handled through the unified script:
+
+```bash
+./runTest.sh
+```
+
+This script:
+- prompts for matrix size
+- selects sequential or parallel mode
+- asks how many MPI processes to use 
+- allows choosing which operation to test 
+- launches the selected program with `mpirun`
+
+This is the only recommended way to run and test in this project.
+
+### **Test Executables**
 
 ```bash
 ./luTest
@@ -134,23 +151,6 @@ Each test program in `tests/` focuses on one operation:
 - `multiplyTest.c`
 
 These programs validate the core matrix operations (LU, REF, RREF, and multiplication).
-
-## How to Run Tests
-
-All testing is handled through the unified script:
-
-```bash
-./runTest.sh
-```
-
-This script:
-- prompts for matrix size
-- selects sequential or parallel mode
-- asks how many MPI processes to use 
-- allows choosing which operation to test 
-- launches the selected program with `mpirun`
-
-This is the only recommended way to run and test in this project.
 
 ---
 
