@@ -43,17 +43,20 @@ int main(int argc, char **argv) {
 
   MPI_Bcast(&(A_original.matrix[0][0]), N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-  // ------------------ Parallel LU ------------------
+  // LU() is a local decomposition, so only rank 0 runs it here.
   if (rank == 0)
-    printf("Running parallel LU()...\n");
+    printf("Running LU() on rank 0...\n");
 
+  MPI_Barrier(MPI_COMM_WORLD);
   double start = MPI_Wtime();
-  LU(&A_original, &L_parallel, &U_parallel);
+  if (rank == 0)
+    LU(&A_original, &L_parallel, &U_parallel);
+  MPI_Barrier(MPI_COMM_WORLD);
   double end = MPI_Wtime();
 
   if (rank == 0) {
-    printf("Parallel LU() done in %.3f seconds\n", end - start);
-    divisor("Parallel LU");
+    printf("LU() done in %.3f seconds\n", end - start);
+    divisor("LU");
 
     if (use_sequential == 1) {
       printf("Running sequential Seq_LU()...\n");

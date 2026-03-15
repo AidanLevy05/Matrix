@@ -764,46 +764,56 @@ void subtractMatrix(const Matrix *A, const Matrix *B, Matrix *result)
   MPI_Allreduce(MPI_IN_PLACE, result->matrix, MAX_ROWS * MAX_COLS, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 }
 
+static void luDecompose(const Matrix *A, Matrix *L, Matrix *U)
+{
+  if (!isValid(A) || !isSquare(A))
+    error("LU decomposition requires a valid square matrix");
+
+  int n = A->rows;
+  L->rows = n;
+  L->cols = n;
+  U->rows = n;
+  U->cols = n;
+
+  for (int i = 0; i < n; ++i)
+  {
+    memset(L->matrix[i], 0, n * sizeof(double));
+    memcpy(U->matrix[i], A->matrix[i], n * sizeof(double));
+  }
+
+  for (int k = 0; k < n; ++k)
+  {
+    double *pivot_row = U->matrix[k];
+    double pivot = pivot_row[k];
+
+    if (fabs(pivot) < 1e-12)
+      error("LU decomposition encountered a zero pivot");
+
+    double inv_pivot = 1.0 / pivot;
+    L->matrix[k][k] = 1.0;
+
+    for (int i = k + 1; i < n; ++i)
+    {
+      double *u_row = U->matrix[i];
+      double multiplier = u_row[k] * inv_pivot;
+      L->matrix[i][k] = multiplier;
+      u_row[k] = 0.0;
+
+      for (int j = k + 1; j < n; ++j)
+      {
+        u_row[j] -= multiplier * pivot_row[j];
+      }
+    }
+  }
+}
+
 /*
 Name: LU
 Parameters: Matrix* A, Matrix* L, Matrix* U
 Return: void
 Description: Performs LU decomposition
 */
-void LU(Matrix *A, Matrix *L, Matrix *U)
-{
-  int n = A->rows;
-
-  // Initialize L and U matrices
-  for (int i = 0; i < n; ++i)
-  {
-    for (int j = 0; j < n; ++j)
-    {
-      L->matrix[i][j] = 0.0;
-      U->matrix[i][j] = A->matrix[i][j];
-    }
-  }
-
-  for (int k = 0; k < n; ++k)
-  {
-    for (int i = k + 1; i < n; ++i)
-    {
-      double multiplier = U->matrix[i][k] / U->matrix[k][k];
-      L->matrix[i][k] = multiplier;
-
-      for (int j = k; j < n; ++j)
-      {
-        U->matrix[i][j] -= multiplier * U->matrix[k][j];
-      }
-    }
-  }
-
-  // Set the diagonal of L to 1
-  for (int i = 0; i < n; ++i)
-  {
-    L->matrix[i][i] = 1.0;
-  }
-}
+void LU(Matrix *A, Matrix *L, Matrix *U) { luDecompose(A, L, U); }
 
 /*
 
@@ -952,40 +962,4 @@ Parameters: const Matrix *A, Matrix *L, Matrix *U
 Return: void
 Description: Performs LU decomposition sequentially.
 */
-void Seq_LU(const Matrix *A, Matrix *L, Matrix *U)
-{
-  if (!isValid(A))
-    error("Invalid matrix");
-
-  int n = A->rows;
-
-  for (int i = 0; i < n; ++i)
-  {
-    for (int j = 0; j < n; ++j)
-    {
-      L->matrix[i][j] = 0;
-      U->matrix[i][j] = 0;
-    }
-  }
-
-  for (int k = 0; k < n; ++k)
-  {
-    for (int j = k; j < n; ++j)
-    {
-      double sum = 0;
-      for (int s = 0; s < k; ++s)
-        sum += L->matrix[k][s] * U->matrix[s][j];
-      U->matrix[k][j] = A->matrix[k][j] - sum;
-    }
-
-    L->matrix[k][k] = 1.0;
-
-    for (int i = k + 1; i < n; ++i)
-    {
-      double sum = 0;
-      for (int s = 0; s < k; ++s)
-        sum += L->matrix[i][s] * U->matrix[s][k];
-      L->matrix[i][k] = (A->matrix[i][k] - sum) / U->matrix[k][k];
-    }
-  }
-}
+void Seq_LU(const Matrix *A, Matrix *L, Matrix *U) { luDecompose(A, L, U); }
