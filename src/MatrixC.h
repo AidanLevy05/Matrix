@@ -1,9 +1,6 @@
 #ifndef MATRIXC_H
 #define MATRIXC_H
 
-#define MAX_ROWS 2100
-#define MAX_COLS 2100
-
 #include <math.h>
 #include <mpi.h>
 #include <stdbool.h>
@@ -15,7 +12,7 @@
 typedef struct {
   int rows;
   int cols;
-  double matrix[MAX_ROWS][MAX_COLS];
+  double *matrix;
 } Matrix;
 
 /* Error handling */
@@ -28,6 +25,7 @@ int getCols(const Matrix *);
 
 /* Constructors */
 void init(Matrix *);
+void destroyMatrix(Matrix *);
 void initSize(Matrix *, const int, const int);
 void initValue(Matrix *, const int, const int, const double);
 void copyMatrix(Matrix *, const Matrix *);

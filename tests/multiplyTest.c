@@ -1,4 +1,5 @@
 #include "../src/MatrixC.h"
+#include <limits.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,7 +7,7 @@
 
 void divisor(const char *msg) { printf("\n---- %s ----\n\n", msg); }
 
-Matrix A, B, C_parallel, C_seq;
+Matrix A = {0}, B = {0}, C_parallel = {0}, C_seq = {0};
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
@@ -31,6 +32,14 @@ int main(int argc, char **argv) {
   MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&use_parallel, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+  const size_t element_count = (size_t)N * (size_t)N;
+  if (element_count > INT_MAX) {
+    if (rank == 0)
+      fprintf(stderr, "Error: matrix size is too large for MPI counts\n");
+    MPI_Finalize();
+    return EXIT_FAILURE;
+  }
+
   initSize(&A, N, N);
   initSize(&B, N, N);
   initSize(&C_parallel, N, N);
@@ -43,8 +52,8 @@ int main(int argc, char **argv) {
   }
 
   // Broadcast A and B
-  MPI_Bcast(&(A.matrix[0][0]), N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  MPI_Bcast(&(B.matrix[0][0]), N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(A.matrix, (int)element_count, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(B.matrix, (int)element_count, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   // ------------------ Parallel ------------------
   if (rank == 0)
@@ -70,6 +79,11 @@ int main(int argc, char **argv) {
     printf("Seq_multiplyMatrix() done in %.3f seconds\n", end - start);
     divisor("Seq_multiplyMatrix");
   }
+
+  destroyMatrix(&A);
+  destroyMatrix(&B);
+  destroyMatrix(&C_parallel);
+  destroyMatrix(&C_seq);
 
   MPI_Finalize();
   return 0;

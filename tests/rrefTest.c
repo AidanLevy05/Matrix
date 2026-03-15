@@ -1,4 +1,5 @@
 #include "../src/MatrixC.h"
+#include <limits.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@
 void divisor(const char *msg) { printf("\n---- %s ----\n\n", msg); }
 
 // Global matrices
-Matrix A_parallel, A_seq;
+Matrix A_parallel = {0}, A_seq = {0};
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
@@ -32,6 +33,14 @@ int main(int argc, char **argv) {
   MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&use_parallel, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+  const size_t element_count = (size_t)N * (size_t)N;
+  if (element_count > INT_MAX) {
+    if (rank == 0)
+      fprintf(stderr, "Error: matrix size is too large for MPI counts\n");
+    MPI_Finalize();
+    return EXIT_FAILURE;
+  }
+
   initSize(&A_parallel, N, N);
   initSize(&A_seq, N, N);
 
@@ -42,7 +51,8 @@ int main(int argc, char **argv) {
   }
 
   // Broadcast to all processes
-  MPI_Bcast(&(A_parallel.matrix[0][0]), N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(A_parallel.matrix, (int)element_count, MPI_DOUBLE, 0,
+            MPI_COMM_WORLD);
 
   // ----------- Parallel rref() -----------
   if (rank == 0)
@@ -68,6 +78,9 @@ int main(int argc, char **argv) {
     printf("Seq_rref() done in %.3f seconds\n", end - start);
     divisor("Seq_rref");
   }
+
+  destroyMatrix(&A_parallel);
+  destroyMatrix(&A_seq);
 
   MPI_Finalize();
   return 0;

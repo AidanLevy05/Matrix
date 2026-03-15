@@ -1,4 +1,5 @@
 #include "../src/MatrixC.h"
+#include <limits.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,8 +7,8 @@
 
 void divisor(const char *msg);
 
-Matrix A_original, L_parallel, U_parallel;
-Matrix L_seq, U_seq;
+Matrix A_original = {0}, L_parallel = {0}, U_parallel = {0};
+Matrix L_seq = {0}, U_seq = {0};
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
@@ -31,6 +32,14 @@ int main(int argc, char **argv) {
   MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&use_sequential, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+  const size_t element_count = (size_t)N * (size_t)N;
+  if (element_count > INT_MAX) {
+    if (rank == 0)
+      fprintf(stderr, "Error: matrix size is too large for MPI counts\n");
+    MPI_Finalize();
+    return EXIT_FAILURE;
+  }
+
   initSize(&A_original, N, N);
   initSize(&L_parallel, N, N);
   initSize(&U_parallel, N, N);
@@ -41,7 +50,8 @@ int main(int argc, char **argv) {
     setRandom(&A_original, 100);
   }
 
-  MPI_Bcast(&(A_original.matrix[0][0]), N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(A_original.matrix, (int)element_count, MPI_DOUBLE, 0,
+            MPI_COMM_WORLD);
 
   // LU() is a local decomposition, so only rank 0 runs it here.
   if (rank == 0)
@@ -69,6 +79,12 @@ int main(int argc, char **argv) {
       divisor("Sequential LU");
     }
   }
+
+  destroyMatrix(&A_original);
+  destroyMatrix(&L_parallel);
+  destroyMatrix(&U_parallel);
+  destroyMatrix(&L_seq);
+  destroyMatrix(&U_seq);
 
   MPI_Finalize();
   return 0;
