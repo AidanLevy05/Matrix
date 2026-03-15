@@ -56,14 +56,10 @@ int main(int argc, char **argv) {
     divisor("Parallel LU");
 
     if (use_sequential == 1) {
-      Matrix A_copy;
-      initSize(&A_copy, N, N);
-      copyMatrix(&A_copy, &A_original);
-
       printf("Running sequential Seq_LU()...\n");
 
       start = MPI_Wtime();
-      Seq_LU(&A_copy, &L_seq, &U_seq);
+      Seq_LU(&A_original, &L_seq, &U_seq);
       end = MPI_Wtime();
 
       printf("Sequential Seq_LU() done in %.3f seconds\n", end - start);
