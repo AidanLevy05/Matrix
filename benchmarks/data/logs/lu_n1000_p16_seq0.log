@@ -1,0 +1,5 @@
+Enter matrix size (N for NxN): Run sequential also? (1 = yes, 0 = no): Running LU() on rank 0...
+LU() done in 0.437 seconds
+
+---- LU ----
+

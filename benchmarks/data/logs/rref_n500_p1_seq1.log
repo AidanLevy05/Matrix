@@ -1,0 +1,11 @@
+Enter matrix size: Run sequential too? (1 = yes, 0 = no): Running parallel rref()...
+Rank 0 received 500 rows, computing...
+rref() done in 0.030 seconds
+
+---- rref ----
+
+Running sequential Seq_rref()...
+Seq_rref() done in 0.097 seconds
+
+---- Seq_rref ----
+

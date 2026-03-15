@@ -1,0 +1,8 @@
+cpu_logical_cores=32
+matrix_sizes=250,500,1000,1500
+mpi_process_counts=1,2,4,8,16
+timings=kernel times reported by the test executables
+
+total        used        free      shared  buff/cache   available
+Mem:            31Gi       6.6Gi        22Gi       851Mi       3.0Gi        24Gi
+Swap:          8.0Gi       1.5Gi       6.5Gi

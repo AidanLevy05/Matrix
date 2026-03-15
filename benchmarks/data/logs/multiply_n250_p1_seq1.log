@@ -1,0 +1,11 @@
+Enter matrix size: Run sequential too? (1 = yes, 0 = no): Running parallel multiplyMatrix()...
+Rank 0 received 250 rows, computing...
+multiplyMatrix() done in 0.024 seconds
+
+---- multiplyMatrix ----
+
+Running sequential Seq_multiplyMatrix()...
+Seq_multiplyMatrix() done in 0.017 seconds
+
+---- Seq_multiplyMatrix ----
+

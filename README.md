@@ -1,8 +1,13 @@
-# Matrix — High-Performance Linear Algebra in C (MPI-Ready)
+# Matrix — Linear Algebra in C with OpenMPI Benchmarks
 
-This project implements core matrix operations in pure C using fixed-size static arrays for deterministic performance, predictable memory access patterns, and easy integration with OpenMPI. The library supports fundamental linear algebra routines including matrix multiplication, REF, RREF, and LU components, and is designed as the computational foundation for distributed parallel algorithms.
+This project implements core matrix operations in pure C with OpenMPI-aware test
+drivers for matrix multiplication, REF, RREF, and LU decomposition. The matrix
+storage is now heap-backed, so the old fixed `2100 x 2100` cap is gone and the
+practical limit is determined by available RAM, MPI count limits, and runtime.
 
-The project is structured for clarity and scalability, separating implementation, tests, documentation, timing results, and figures.
+The repository includes the core implementation, interactive MPI test binaries,
+and a repeatable benchmark suite that generates CSV timing tables, PNG figures,
+and a short LaTeX report.
 
 ---
 
@@ -11,11 +16,12 @@ The project is structured for clarity and scalability, separating implementation
 ```
 Matrix/
 │
+├── benchmarks/       # New benchmark data, figures, scripts, and LaTeX report
 ├── src/              # Core library: MatrixC.c, MatrixC.h
 ├── tests/            # Standalone test drivers (luTest.c, refTest.c, etc.)
-├── results/          # Timing tables, speedup data (.ods files)
-├── figs/             # Performance plots and figures (.png)
-├── docs/             # Project report, slides (.tex, .pdf)
+├── results/          # Older timing spreadsheets (.ods)
+├── figs/             # Older performance plots (.png)
+├── docs/             # Original project report and slides
 ├── makefile          # Build rules for all test programs
 └── README.md         # This file
 ```
@@ -28,14 +34,14 @@ Matrix/
 - Matrix multiplication  
 - Row-Echelon Form (REF)  
 - Reduced Row-Echelon Form (RREF)  
-- Partial LU component routines  
-- Deterministic static-array structure (no dynamic allocation)
+- LU decomposition  
+- Heap-backed matrix storage with allocation checks
 
 ### **Design Philosophy**
-- No C++ or malloc — pure C for MPI portability  
-- Predictable memory layout for cache-friendly parallelization  
+- Pure C with explicit memory management  
+- Contiguous row-major storage for cache-friendly access  
 - Clean separation between library and tests  
-- Easy to extend into multi-process MPI execution
+- Easy to benchmark and extend into stronger MPI implementations
 
 ---
 
@@ -65,6 +71,26 @@ This script:
 
 This is the only recommended way to run and test in this project.
 
+### Benchmark Suite
+
+To regenerate the new benchmark data, plots, and summary CSV files, run:
+
+```bash
+python3 benchmarks/scripts/run_benchmarks.py
+```
+
+This benchmark sweep currently covers:
+
+- matrix sizes `250`, `500`, `1000`, and `1500`
+- MPI process counts `1`, `2`, `4`, `8`, and `16`
+- all four shipped executables
+
+Generated artifacts are written to:
+
+- `benchmarks/data/` for timing tables and raw logs
+- `benchmarks/figures/` for timing and speedup plots
+- `benchmarks/report/` for the LaTeX benchmark report
+
 ### **Test Executables**
 
 ```bash
@@ -86,42 +112,59 @@ make clean
 
 ## Performance Analysis
 
-This project includes real timing and scaling measurements collected across multiple matrix sizes.
+This repository now contains two sets of performance artifacts:
 
-### Included Results:
-Located in `results/`:
+- the original spreadsheets and figures in `results/` and `figs/`
+- the new reproducible benchmark suite in `benchmarks/`
 
-- `multiply.ods` — Multiplication timings & speedups  
-- `ref.ods`       — REF benchmarks  
-- `rref.ods`      — RREF benchmarks  
-- `lu.ods`        — LU decomposition–related timings  
+### New Benchmark Outputs
 
-### Included Plots:
-Located in `figs/`:
+Located in `benchmarks/`:
 
-- `matrix.png` — Overall performance summary  
-- `ref.png`    — REF timing curve  
-- `rref.png`   — RREF timing curve  
-- `lu.png`     — LU component timing  
+- `data/timings.csv` — all benchmark rows with kernel time, wall time, and log path
+- `data/summary.csv` — best MPI result at each tested matrix size
+- `data/logs/` — raw stdout/stderr from each benchmark run
+- `figures/multiply_timing.png` — multiplication timing curves
+- `figures/ref_timing.png` — REF timing curves
+- `figures/rref_timing.png` — RREF timing curves
+- `figures/lu_timing.png` — LU timing curves
+- `figures/speedup_summary.png` — combined speedup overview
+- `report/Benchmark_Timing_Report.tex` — short LaTeX benchmark writeup
+- `report/Benchmark_Timing_Report.pdf` — compiled benchmark report
 
-These results were produced on real hardware using optimized GCC builds.
+### Original Results
+
+Located in `results/` and `figs/`:
+
+- `multiply.ods`
+- `ref.ods`
+- `rref.ods`
+- `lu.ods`
+- `matrix.png`
+- `ref.png`
+- `rref.png`
+- `lu.png`
+
+The new benchmark suite uses the timings printed by the test executables
+themselves, which makes it easy to rerun after code changes.
 
 ---
 
 ## Documentation
 
-All formal documentation is in `docs/`:
+Documentation is split between the original project writeup in `docs/` and the
+new benchmark report in `benchmarks/report/`.
+
+### Original Documentation in `docs/`
 
 - **Matrix_Project_Report.pdf** — Complete writeup  
 - **Matrix_Project_Slides.pdf** — Presentation / overview  
 - **Matrix_Project_Report.tex** — LaTeX source  
 
-These files describe:
-- Mathematical background  
-- Algorithm descriptions  
-- Experimental design  
-- Timing results  
-- Speedup/efficiency interpretation  
+### New Benchmark Documentation in `benchmarks/report/`
+
+- **Benchmark_Timing_Report.pdf** — Short benchmark summary
+- **Benchmark_Timing_Report.tex** — LaTeX source
 
 ---
 
@@ -131,13 +174,11 @@ The core of the project lives in `src/MatrixC.c` and `src/MatrixC.h`.
 
 ### Highlights:
 
-- `Matrix` struct uses static arrays for deterministic size.
+- `Matrix` uses heap-backed contiguous storage.
 - Each operation is isolated and testable.
-- Functions are optimized for predictable loops and minimal branching.
-- Designed to be extended into distributed operations with MPI:
-  - Scatter blocks  
-  - Local computations  
-  - Gather results  
+- The MPI paths allocate local work buffers based on the real matrix size.
+- Large temporary buffers have been moved off the stack.
+- The benchmark suite makes it easy to rerun timing studies after changes.
 
 ---
 
@@ -156,15 +197,14 @@ These programs validate the core matrix operations (LU, REF, RREF, and multiplic
 
 ## Future Work
 
-- Add OpenMPI parallel versions of all operations  
-- Integrate row-blocking for cache-efficient multiplication  
-- Add full LU decomposition with pivoting  
-- Create automated test suite with expected outputs  
-- Migrate timing collection into Python benchmarking scripts  
+- Add a truly distributed MPI LU decomposition
+- Add partial pivoting to LU, REF, and RREF
+- Add assertion-based correctness tests
+- Expand the benchmark suite to larger problem sizes and repeated trials
+- Add CSV-to-LaTeX table generation for the benchmark report
 
 ---
 
 ## License
 
 This project is licensed under the **MIT License**. See `LICENSE` for details.
-

@@ -1,0 +1,12 @@
+Enter matrix size: Run sequential too? (1 = yes, 0 = no): Running parallel ref()...
+Rank 0 preparing to allocate 500 rows × 500 cols = 1.91 MB
+Rank 0 received 500 rows, computing...
+ref() done in 0.034 seconds
+
+---- ref ----
+
+Running sequential Seq_ref()...
+Seq_ref() done in 0.057 seconds
+
+---- Seq_ref ----
+
